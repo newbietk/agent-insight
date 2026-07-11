@@ -6,5 +6,13 @@
 // INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY, OR FITNESS FOR A PARTICULAR PURPOSE.
 // See LICENSE in the root of the software repository for the full text of the License.
 
-export const VERSION = "0.0.1"
-export const VERSION_DISPLAY = `v${VERSION}`
+const BRAND_NAME = "KirinAI-Insight"
+const BRAND_SLUG = BRAND_NAME.toLowerCase().replace(/[^a-z0-9]+/g, "-")
+const BRAND_DESCRIPTION = `${BRAND_NAME} — LLM Agent Session Observability`
+const BRAND_CONFIG_DIR_SUFFIX = `.${BRAND_SLUG}`
+const BRAND_CLI_ALIAS = "kai"
+
+// Data format identifier — always "kirinai-insight" regardless of branding
+const BRAND_SOURCE_TYPE = "kirinai-insight"
+
+export { BRAND_NAME, BRAND_SLUG, BRAND_DESCRIPTION, BRAND_CONFIG_DIR_SUFFIX, BRAND_CLI_ALIAS, BRAND_SOURCE_TYPE }
