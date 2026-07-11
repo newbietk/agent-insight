@@ -3,9 +3,20 @@
   "version": "0.0.1",
   "type": "module",
   "bin": {
-    "kirinai-insight": "./src/cli/index.ts",
-    "kai": "./src/cli/index.ts"
+    "kirinai-insight": "./bin/kai.mjs",
+    "kai": "./bin/kai.mjs"
   },
+  "files": [
+    "bin/",
+    "src/",
+    "prisma/",
+    "public/",
+    "next.config.ts",
+    "tsconfig.json",
+    "postcss.config.mjs",
+    "eslint.config.mjs",
+    ".env.example"
+  ],
   "scripts": {
     "dev": "next dev",
     "build": "next build",

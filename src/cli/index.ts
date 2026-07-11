@@ -23,6 +23,7 @@ import { configCommand } from './commands/config';
 import { analyzeCommand } from './commands/analyze';
 import { exportCommand } from './commands/export';
 import { uploadCommand } from './commands/upload';
+import { startCommand } from './commands/start';
 import { InsightError } from './errors';
 
 export function createProgram(): Command {
@@ -55,6 +56,7 @@ export function createProgram(): Command {
   program.addCommand(analyzeCommand());
   program.addCommand(exportCommand());
   program.addCommand(uploadCommand());
+  program.addCommand(startCommand());
 
   return program;
 }
