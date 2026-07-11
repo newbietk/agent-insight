@@ -63,7 +63,7 @@ export function readSession(dbPath: string, sessionId: string): RawInteraction[]
 
     const turns = db.prepare(
       'SELECT * FROM "Turn" WHERE sessionId = ? ORDER BY turnIndex'
-    ).all(session.id) as TurnRow[];
+    ).all(session.id) as unknown as TurnRow[];
 
     if (turns.length === 0) return [];
 
@@ -72,13 +72,13 @@ export function readSession(dbPath: string, sessionId: string): RawInteraction[]
     const toolCalls = turnIds.length > 0
       ? (db.prepare(
           `SELECT * FROM "ToolCall" WHERE turnId IN (${turnIds.map(() => '?').join(',')})`
-        ).all(...turnIds) as ToolCallRow[])
+        ).all(...turnIds) as unknown as ToolCallRow[])
       : [];
 
     const skillEvents = turnIds.length > 0
       ? (db.prepare(
           `SELECT * FROM "SkillEvent" WHERE turnId IN (${turnIds.map(() => '?').join(',')})`
-        ).all(...turnIds) as SkillEventRow[])
+        ).all(...turnIds) as unknown as SkillEventRow[])
       : [];
 
     const toolCallsByTurn = new Map<string, ToolCallInfo[]>();

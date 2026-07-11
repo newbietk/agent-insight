@@ -451,7 +451,7 @@ export async function importSession(
         completedAt: t.completedAt ? t.completedAt.toISOString() : null,
       }));
       const updatedAggregates = computeSessionAggregates(
-        turnRowsForAgg,
+        turnRowsForAgg as unknown as TurnRow[],
         allToolCallsAfterMerge as unknown as ToolCallRow[],
         allSkillEventsAfterMerge as unknown as SkillEventRow[],
       );

@@ -115,7 +115,7 @@ interface TurnRowItem {
   completedAt: string | null
   model: string | null
   toolCalls: Array<{ toolCallId: string; toolName: string; argsJson?: string | null; resultJson?: string | null; state: string; durationMs: number }>
-  skillEvents: Array<{ skillName: string; eventType: string; success: boolean }>
+  skillEvents: Array<{ skillName: string; eventType: string; success: boolean; errorMessage?: string | null }>
 }
 
 interface TurnDetailData {

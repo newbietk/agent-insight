@@ -93,7 +93,7 @@ export function resolveDefaultPaths(agentId: string): string[] {
     });
 }
 
-export function scanAgent(agentId: string, customPath?: string): AgentDiscovery {
+export function scanAgent(agentId: string, customPath?: string): AgentDiscovery | null {
   const agent = AGENTS.find(a => a.id === agentId);
   if (!agent) {
     return { id: agentId, name: agentId, found: false, sourcePath: null, sessionCount: 0, latestAt: null, reason: 'unknown-agent' };
@@ -118,6 +118,10 @@ export function scanAgent(agentId: string, customPath?: string): AgentDiscovery 
 
   try {
     const adapter = getAdapter(agent.sourceType);
+    if (!adapter) {
+      console.warn(`[discovery] no adapter for sourceType "${agent.sourceType}", skipping ${agent.name}`);
+      return null;
+    }
     const sessions = adapter.listSessions(sourcePath);
 
     let latestAt: string | null = null;
@@ -140,10 +144,10 @@ export function scanAgent(agentId: string, customPath?: string): AgentDiscovery 
 }
 
 export function scanAllAgents(): AgentDiscovery[] {
-  return AGENTS.map(a => scanAgent(a.id));
+  return AGENTS.map(a => scanAgent(a.id)).filter((d): d is AgentDiscovery => d !== null);
 }
 
-export function scanAgentWithCustomPath(agentId: string, customPath: string): AgentDiscovery {
+export function scanAgentWithCustomPath(agentId: string, customPath: string): AgentDiscovery | null {
   return scanAgent(agentId, customPath);
 }
 

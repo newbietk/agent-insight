@@ -14,6 +14,9 @@ type Severity = "high" | "medium" | "low"
 export interface Problem {
   type: string
   severity: Severity
+  id?: string
+  title?: string
+  detail?: string
   evidence?: string
   diagnosis?: string
   suggestion?: string
