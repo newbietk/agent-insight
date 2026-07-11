@@ -374,7 +374,7 @@ export function ScanDialog() {
               </div>
               <div className="flex gap-2">
                 <Input
-                  placeholder={customAgentId === 'opencode' ? '/path/to/sessions.db' : '/path/to/sessions-dir'}
+                  placeholder={customAgentId === 'opencode' ? '/path/to/opencode.db' : '/path/to/sessions-dir'}
                   value={customPath}
                   onChange={(e) => setCustomPath(e.target.value)}
                   className="flex-1"

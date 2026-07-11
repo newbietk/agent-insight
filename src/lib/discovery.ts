@@ -35,9 +35,9 @@ const AGENTS: AgentDefinition[] = [
     name: 'Opencode',
     sourceType: 'opencode-db',
     defaultPaths: {
-      linux:  ['~/.local/share/opencode/sessions.db'],
-      darwin: ['~/Library/Application Support/opencode/sessions.db'],
-      win32:  ['%LOCALAPPDATA%/opencode/sessions.db', '%USERPROFILE%/.local/share/opencode/sessions.db'],
+      linux:  ['~/.local/share/opencode/opencode.db'],
+      darwin: ['~/Library/Application Support/opencode/opencode.db'],
+      win32:  ['%LOCALAPPDATA%/opencode/opencode.db', '%USERPROFILE%/.local/share/opencode/opencode.db'],
     },
   },
   {
