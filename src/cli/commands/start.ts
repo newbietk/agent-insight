@@ -18,11 +18,14 @@ import { BRAND_NAME } from '@/lib/branding';
 const __filename = fileURLToPath(import.meta.url);
 const PACKAGE_ROOT = path.resolve(__filename, '..', '..', '..', '..');
 
+const PRISMA_CLIENT_INDEX = path.join(
+  PACKAGE_ROOT, 'node_modules', '.prisma', 'client', 'index.js',
+);
+
 function ensureEnv(port: string): void {
   const envPath = path.join(PACKAGE_ROOT, '.env');
   const dbPath = path.join(PACKAGE_ROOT, 'prisma', 'dev.db');
 
-  // Write .env if missing
   if (!fs.existsSync(envPath)) {
     const content = [
       `DATABASE_URL="file:${dbPath.replace(/\\/g, '/')}"`,
@@ -31,6 +34,45 @@ function ensureEnv(port: string): void {
     fs.writeFileSync(envPath, content);
     console.log(`[kirinai] Created .env at ${envPath}`);
   }
+}
+
+function ensurePrismaClient(): boolean {
+  if (fs.existsSync(PRISMA_CLIENT_INDEX)) {
+    console.log('[kirinai] Prisma client already generated, skipping.');
+    return true;
+  }
+
+  console.log('[kirinai] Generating Prisma client...');
+  const result = spawnSync('npx', ['prisma', 'generate'], {
+    cwd: PACKAGE_ROOT,
+    stdio: 'pipe',
+    shell: true,
+    env: { ...process.env },
+  });
+
+  if (result.status !== 0) {
+    const stderr = result.stderr?.toString() ?? '';
+    const stdout = result.stdout?.toString() ?? '';
+    const relevant = stderr || stdout;
+
+    console.error('[kirinai] Prisma engine download failed.');
+    if (relevant) {
+      console.error(`[kirinai] ${relevant.split('\n').slice(0, 5).join('\n')}`);
+    }
+    console.error('');
+    console.error('[kirinai] This is usually caused by network issues (unable to reach Prisma CDN).');
+    console.error('[kirinai] Solutions:');
+    console.error('[kirinai]   1. Use a mirror (recommended for users in China):');
+    console.error('[kirinai]      set PRISMA_ENGINES_MIRROR=https://registry.npmmirror.com/-/binary/prisma/');
+    console.error('[kirinai]   2. Use a custom npm registry:');
+    console.error('[kirinai]      npm config set registry https://registry.npmmirror.com/');
+    console.error('[kirinai]   3. Set HTTP_PROXY / HTTPS_PROXY if behind a corporate proxy.');
+    console.error('[kirinai]   4. Download the engine manually:');
+    console.error('[kirinai]      https://www.prisma.io/docs/orm/more/under-the-hood/engines');
+    return false;
+  }
+
+  return true;
 }
 
 function ensureDatabase(): boolean {
@@ -85,17 +127,15 @@ export function startCommand(): Command {
       // 1. Ensure .env
       ensureEnv(port);
 
-      // 2. Prisma generate (ensure client is ready)
-      console.log('[kirinai] Generating Prisma client...');
-      spawnSync('npx', ['prisma', 'generate'], {
-        cwd: PACKAGE_ROOT,
-        stdio: 'pipe',
-        shell: true,
-      });
+      // 2. Prisma generate (ensure client is ready, with mirror guidance on failure)
+      if (!ensurePrismaClient()) {
+        process.exit(1);
+      }
 
       // 3. Ensure database
       if (!ensureDatabase()) {
         console.error('[kirinai] Failed to initialize database.');
+        console.error('[kirinai] This may also be a network issue — see mirror options above.');
         process.exit(1);
       }
 
