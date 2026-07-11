@@ -18,6 +18,56 @@ LLM 编码 Agent 的 Session 级可观测工具。辅助长上下文分析、模
 - **文件读取分析** — 分析文件读取冗余，检测重复和不必要读取
 - **Session 对比** — 对比两个 session 的 token、费用、耗时、工具调用和 subagent
 
+## 快速开始
+
+三步完成首次 Session 分析。
+
+### 1. 环境准备
+
+- **Node.js >= 22.5**（内置 `node:sqlite` 模块需要此版本）。执行 `node -v` 检查。
+- **npm**（随 Node.js 安装）。
+
+Linux/macOS 下 `start.sh` 会自动检测 Node 版本并可通过 nvm 切换。Windows 下从 [nodejs.org](https://nodejs.org) 直接安装 Node 22+。
+
+### 2. 克隆、安装、启动
+
+```bash
+git clone https://github.com/newbietk/KirinAI-Insight.git
+cd kirinai-insight
+
+# Linux / macOS / WSL — 一条命令：
+./start.sh
+
+# Windows (cmd / PowerShell) — 手动步骤：
+npm install
+npx prisma generate
+npx prisma migrate dev --name init
+npm run dev
+```
+
+浏览器打开 **http://localhost:21025**。
+
+### 3. 导入首个 Session
+
+在首页点击右上角 **"导入"** 按钮，可选择两种来源：
+
+| 来源 | 典型路径 |
+|------|---------|
+| **Opencode** | `~/.local/share/opencode/opencode.db`（Linux）/ `%LOCALAPPDATA%\opencode\opencode.db`（Windows） |
+| **Claude Code** | `~/.claude/projects/` — 选择项目目录，自动扫描所有 `.jsonl` 文件 |
+
+选择来源类型，从列表中勾选 Session，点击 **导入**。导入完成后点击 Session 行进入 9 个分析 Tab 的完整视图。
+
+> **提示**：也可以将 `.db` 或 `.jsonl` 文件直接拖拽到导入对话框中。
+
+### 可选：上传到 KirinAI Cloud
+
+如需将 Session 连同结构化反馈一起提交到云端平台：
+
+1. 克隆并启动 [KirinAI-Cloud](https://github.com/newbietk/KirinAI-Cloud)，默认端口 21026
+2. 将 `.env.example` 复制为 `.env`（默认已指向 `http://localhost:21026`）
+3. 点击任意 Session 的 **上传** 按钮（云朵图标），打开反馈表单
+
 ## 方式一：Web UI
 
 **需要 Node.js >= 22.5**（内置 `node:sqlite` 模块需要此版本）。如果有 nvm，`start.sh` 会自动切换到 Node 22 LTS。

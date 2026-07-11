@@ -18,6 +18,56 @@ Import opencode sessions.db or Claude Code JSONL logs, then analyze Agent sessio
 - **File Read Analysis** — Detect duplicate and unnecessary file reads
 - **Session Compare** — Compare two sessions on tokens, cost, latency, tool calls, and subagents
 
+## Quick Start
+
+A 3-step path to your first session analysis.
+
+### 1. Prerequisites
+
+- **Node.js >= 22.5** (required for built-in `node:sqlite`). Check with `node -v`.
+- **npm** (comes with Node.js).
+
+On Linux/macOS, `start.sh` auto-detects your Node version and can switch via nvm. On Windows, install Node 22+ directly from [nodejs.org](https://nodejs.org).
+
+### 2. Clone, Install & Start
+
+```bash
+git clone https://github.com/newbietk/KirinAI-Insight.git
+cd kirinai-insight
+
+# Linux / macOS / WSL — one command:
+./start.sh
+
+# Windows (cmd / PowerShell) — manual steps:
+npm install
+npx prisma generate
+npx prisma migrate dev --name init
+npm run dev
+```
+
+Open **http://localhost:21025** in your browser.
+
+### 3. Import Your First Session
+
+On the home page, click the **"Import"** button (top-right). You'll see two source types:
+
+| Source | Typical Path |
+|--------|-------------|
+| **Opencode** | `~/.local/share/opencode/opencode.db` (Linux) / `%LOCALAPPDATA%\opencode\opencode.db` (Windows) |
+| **Claude Code** | `~/.claude/projects/` — select a project directory to scan all `.jsonl` files |
+
+Select a source type, pick a session from the list, and click **Import**. After import completes, click the session row to enter the full 9-tab analysis view.
+
+> **Tip**: You can also drag & drop a `.db` or `.jsonl` file onto the import dialog.
+
+### Optional: Upload to KirinAI Cloud
+
+If you want to submit a session with structured feedback to the cloud platform:
+
+1. Clone and start [KirinAI-Cloud](https://github.com/newbietk/KirinAI-Cloud) on port 21026
+2. Copy `.env.example` to `.env` (defaults point to `http://localhost:21026`)
+3. Click the **Upload** button (cloud icon) on any session to open the feedback form
+
 ## Option 1: Web UI
 
 **Requires Node.js >= 22.5** (for built-in `node:sqlite` module). If you have nvm, `start.sh` auto-switches to Node 22 LTS.
