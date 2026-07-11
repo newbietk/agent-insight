@@ -1,4 +1,4 @@
-# CANNBot-Insight
+# KirinAI-Insight
 
 Session-level observability tool for LLM coding agents. Helps analyze long-context usage patterns, detect model hallucination issues, and govern context window growth across agent sessions.
 

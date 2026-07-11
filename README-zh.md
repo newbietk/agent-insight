@@ -1,4 +1,4 @@
-# CANNBot-Insight
+# KirinAI-Insight
 
 LLM 编码 Agent 的 Session 级可观测工具。辅助长上下文分析、模型幻觉问题治理，以及 Agent Session 中上下文窗口增长的监控与优化。
 
