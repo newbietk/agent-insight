@@ -157,10 +157,16 @@ export function loadAgentSessions(
   if (!agent) return { sessions: [], total: 0 };
 
   const adapter = getAdapter(agent.sourceType);
-  const allSessions = adapter.listSessions(sourcePath);
+  if (!adapter) return { sessions: [], total: 0 };
 
-  const start = (page - 1) * pageSize;
-  const sessions = allSessions.slice(start, start + pageSize);
+  try {
+    const allSessions = adapter.listSessions(sourcePath);
 
-  return { sessions, total: allSessions.length };
+    const start = (page - 1) * pageSize;
+    const sessions = allSessions.slice(start, start + pageSize);
+
+    return { sessions, total: allSessions.length };
+  } catch {
+    return { sessions: [], total: 0 };
+  }
 }
