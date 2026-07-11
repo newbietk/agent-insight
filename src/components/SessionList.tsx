@@ -90,19 +90,13 @@ function formatTime(iso: string | null): string {
   return `${month}/${day} ${hour}:${minute}`;
 }
 
-function buildUploadDescription(item: SessionListItem): string {
-  const query = item.query ?? ''
-  const user = item.user ?? ''
-  const model = item.model ?? ''
-  const timeRange = `${formatTime(item.startTime)} → ${formatTime(item.endTime)}`
-  const framework = item.framework ?? ''
-  const sourcePath = item.sourcePath ?? ''
-  return `提交人:${user ? ' ' + user : ''}
-内容描述:${query ? ' ' + query : ''}
-问题说明:
-日志路径:${sourcePath ? ' ' + sourcePath : ' taskId ' + item.taskId + ', 框架 ' + framework}
-备注: 模型 ${model}, 时间 ${timeRange}`
-}
+const ISSUE_TYPES = [
+  { value: 'context_explosion', label: '上下文爆炸' },
+  { value: 'duplicate_reads', label: '重复读文件' },
+  { value: 'cost_spike', label: '费用异常' },
+  { value: 'hallucination', label: '模型幻觉' },
+  { value: 'other', label: '其他' },
+] as const;
 
 export function SessionList({ items, total, page, pageSize }: SessionListProps) {
   const router = useRouter()
@@ -117,7 +111,10 @@ export function SessionList({ items, total, page, pageSize }: SessionListProps) 
   const [uploadError, setUploadError] = useState<string | null>(null)
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null)
   const [uploadDialogItem, setUploadDialogItem] = useState<SessionListItem | null>(null)
-  const [uploadDescription, setUploadDescription] = useState('')
+  const [uploadIssueType, setUploadIssueType] = useState<string>('context_explosion')
+  const [uploadProblemDesc, setUploadProblemDesc] = useState('')
+  const [uploadHelpRequest, setUploadHelpRequest] = useState('')
+  const [uploadContactEmail, setUploadContactEmail] = useState('')
 
   function handleToggle(sessionId: string) {
     setSelectedIds(prev => {
@@ -153,7 +150,7 @@ export function SessionList({ items, total, page, pageSize }: SessionListProps) 
     } catch {}
   }
 
-  async function handleUpload(item: SessionListItem, description: string) {
+  async function handleUpload(item: SessionListItem) {
     const key = item.sessionId
     setUploadStatus(prev => ({ ...prev, [key]: 'uploading' }))
     setUploadError(null)
@@ -165,7 +162,10 @@ export function SessionList({ items, total, page, pageSize }: SessionListProps) 
         body: JSON.stringify({
           taskId: item.taskId,
           framework: item.framework ?? 'unknown',
-          description,
+          issueType: uploadIssueType,
+          problemDescription: uploadProblemDesc,
+          helpRequest: uploadHelpRequest,
+          contactEmail: uploadContactEmail || undefined,
         }),
       })
       const data = await res.json()
@@ -175,6 +175,10 @@ export function SessionList({ items, total, page, pageSize }: SessionListProps) 
         return
       }
       setUploadStatus(prev => ({ ...prev, [key]: 'done' }))
+      toast.success('已上传到 KirinAI Cloud', {
+        description: `Submission ${data.submissionId}`,
+        icon: <CheckCircleIcon className="size-4" />,
+      })
     } catch {
       setUploadStatus(prev => ({ ...prev, [key]: 'error' }))
       setUploadError('Upload failed: network error')
@@ -239,6 +243,14 @@ export function SessionList({ items, total, page, pageSize }: SessionListProps) 
       setExportStatus(prev => ({ ...prev, [key]: 'error' }))
       toast.error('Export failed', { description: 'Network error' })
     }
+  }
+
+  function openUploadDialog(item: SessionListItem) {
+    setUploadIssueType('context_explosion')
+    setUploadProblemDesc('')
+    setUploadHelpRequest('')
+    setUploadContactEmail('')
+    setUploadDialogItem(item)
   }
 
   const selectedArr = Array.from(selectedIds)
@@ -309,24 +321,85 @@ export function SessionList({ items, total, page, pageSize }: SessionListProps) 
         </DialogContent>
       </Dialog>
       <Dialog open={uploadDialogItem !== null} onOpenChange={(open) => { if (!open) setUploadDialogItem(null) }}>
-        <DialogContent>
+        <DialogContent className="sm:max-w-lg">
           <DialogHeader>
-            <DialogTitle>上传到 CANNBay</DialogTitle>
+            <DialogTitle>上传到 KirinAI Cloud</DialogTitle>
+            <DialogDescription>
+              将 session 观测数据和反馈一起上传到云端平台
+            </DialogDescription>
           </DialogHeader>
-          <textarea
-            className="w-full min-h-[240px] text-sm p-3 border rounded-md bg-muted/30 resize-y"
-            value={uploadDescription}
-            onChange={(e) => setUploadDescription(e.target.value)}
-          />
+          <div className="space-y-4">
+            {/* Issue type */}
+            <div>
+              <label className="text-sm font-medium mb-1.5 block">问题类型</label>
+              <div className="flex flex-wrap gap-2">
+                {ISSUE_TYPES.map(t => (
+                  <Button
+                    key={t.value}
+                    variant={uploadIssueType === t.value ? 'default' : 'outline'}
+                    size="sm"
+                    onClick={() => setUploadIssueType(t.value)}
+                  >
+                    {t.label}
+                  </Button>
+                ))}
+              </div>
+            </div>
+
+            {/* Problem description */}
+            <div>
+              <label className="text-sm font-medium mb-1.5 block">问题描述</label>
+              <textarea
+                className="w-full min-h-[80px] text-sm p-3 border rounded-md bg-muted/30 resize-y"
+                placeholder="描述遇到了什么问题..."
+                value={uploadProblemDesc}
+                onChange={(e) => setUploadProblemDesc(e.target.value)}
+              />
+            </div>
+
+            {/* Help request */}
+            <div>
+              <label className="text-sm font-medium mb-1.5 block">需要什么帮助</label>
+              <textarea
+                className="w-full min-h-[80px] text-sm p-3 border rounded-md bg-muted/30 resize-y"
+                placeholder="希望得到什么帮助或建议..."
+                value={uploadHelpRequest}
+                onChange={(e) => setUploadHelpRequest(e.target.value)}
+              />
+            </div>
+
+            {/* Contact email */}
+            <div>
+              <label className="text-sm font-medium mb-1.5 block">联系邮箱（可选，用于回复通知）</label>
+              <input
+                type="email"
+                className="w-full h-9 text-sm px-3 border rounded-md bg-muted/30"
+                placeholder="your@email.com"
+                value={uploadContactEmail}
+                onChange={(e) => setUploadContactEmail(e.target.value)}
+              />
+            </div>
+
+            {/* Auto-attached info */}
+            {uploadDialogItem && (
+              <div className="text-xs text-muted-foreground bg-muted/30 rounded-md p-3 space-y-1">
+                <p className="font-medium">将自动附带以下数据：</p>
+                <p>Session ID: {uploadDialogItem.taskId}</p>
+                <p>框架: {uploadDialogItem.framework ?? 'unknown'}</p>
+                <p>模型: {uploadDialogItem.model ?? '—'}</p>
+                <p>Tokens: {formatTokens(uploadDialogItem.totalTokens)} · 费用: {formatCost(uploadDialogItem.totalCost)} · 工具调用: {uploadDialogItem.totalToolCallCount}</p>
+              </div>
+            )}
+          </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setUploadDialogItem(null)}>取消</Button>
             <Button
               variant="default"
               className="bg-blue-600 hover:bg-blue-700 text-white"
-              onClick={() => { if (uploadDialogItem) handleUpload(uploadDialogItem, uploadDescription) }}
-              disabled={!uploadDescription.trim()}
+              onClick={() => { if (uploadDialogItem) handleUpload(uploadDialogItem) }}
+              disabled={!uploadProblemDesc.trim()}
             >
-              确认上传
+              提交
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -422,9 +495,9 @@ export function SessionList({ items, total, page, pageSize }: SessionListProps) 
                         variant="outline"
                         size="icon"
                         className="size-6"
-                        onClick={() => { setUploadDescription(buildUploadDescription(item)); setUploadDialogItem(item) }}
+                        onClick={() => openUploadDialog(item)}
                         disabled={uStatus === 'uploading'}
-                        title="Upload to CANNBay"
+                        title="Upload to KirinAI Cloud"
                       >
                         {uStatus === 'idle' && <UploadIcon className="size-3.5" />}
                         {uStatus === 'uploading' && <LoaderIcon className="size-3.5 animate-spin" />}

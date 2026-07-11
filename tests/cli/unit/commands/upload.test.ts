@@ -45,7 +45,8 @@ const sampleImportResult: ApiImportResponse = {
 
 const sampleUploadResult: ApiUploadResponse = {
   success: true,
-  filename: 'kirinai_db_session_ses_abc123_a1b2c3d4.db',
+  submissionId: 'sub_abc123',
+  status: 'pending',
 };
 
 const sampleSessionDetail: ApiSessionDetailResponse = {
@@ -93,13 +94,16 @@ describe('uploadCommand', () => {
       expect(cmd.name()).toBe('upload');
     });
 
-    it('has --session, --file, --source, --description, --json, --yes options', () => {
+    it('has --session, --file, --source, --problem, --json, --yes options', () => {
       const cmd = uploadCommand();
       const options = cmd.options.map(o => o.long);
       expect(options).toContain('--session');
       expect(options).toContain('--file');
       expect(options).toContain('--source');
-      expect(options).toContain('--description');
+      expect(options).toContain('--problem');
+      expect(options).toContain('--issue-type');
+      expect(options).toContain('--help-request');
+      expect(options).toContain('--email');
       expect(options).toContain('--json');
       expect(options).toContain('--yes');
     });
@@ -139,7 +143,7 @@ describe('uploadCommand', () => {
   });
 
   describe('upload from source file (--file mode)', () => {
-    it('uploads single session from .db with --description', async () => {
+    it('uploads single session from .db with --problem', async () => {
       mockListSessions.mockResolvedValueOnce({ items: [], total: 0, page: 1 });
       mockListImportableSessions.mockResolvedValueOnce(sampleImportableResponse);
       mockImportSession.mockResolvedValueOnce(sampleImportResult);
@@ -151,12 +155,12 @@ describe('uploadCommand', () => {
       const importResult = await client.importSession('opencode-db', '/path/to/sessions.db', 'ses_abc123');
       expect(importResult.imported).toBe(true);
 
-      const uploadResult = await client.uploadSession('ses_abc123', '提交人: gxh\n内容描述: Fix bug', 'opencode');
+      const uploadResult = await client.uploadSession('ses_abc123', 'opencode', 'other', 'Fix bug', '', undefined);
       expect(uploadResult.success).toBe(true);
-      expect(uploadResult.filename).toContain('kirinai_db_session');
+      expect(uploadResult.submissionId).toBe('sub_abc123');
 
       expect(mockImportSession).toHaveBeenCalledWith('opencode-db', '/path/to/sessions.db', 'ses_abc123');
-      expect(mockUploadSession).toHaveBeenCalledWith('ses_abc123', '提交人: gxh\n内容描述: Fix bug', 'opencode');
+      expect(mockUploadSession).toHaveBeenCalledWith('ses_abc123', 'opencode', 'other', 'Fix bug', '', undefined);
     });
 
     it('resolves framework from source type correctly', async () => {
@@ -164,12 +168,12 @@ describe('uploadCommand', () => {
       const client = new InsightClient('http://localhost:21025', { retries: 0 });
 
       mockUploadSession.mockResolvedValueOnce(sampleUploadResult);
-      await client.uploadSession('ses_abc123', 'description', 'opencode');
-      expect(mockUploadSession).toHaveBeenCalledWith('ses_abc123', 'description', 'opencode');
+      await client.uploadSession('ses_abc123', 'opencode', 'other', 'description', '', undefined);
+      expect(mockUploadSession).toHaveBeenCalledWith('ses_abc123', 'opencode', 'other', 'description', '', undefined);
 
       mockUploadSession.mockResolvedValueOnce(sampleUploadResult);
-      await client.uploadSession('d1ef6b6f', 'description', 'claude-code');
-      expect(mockUploadSession).toHaveBeenCalledWith('d1ef6b6f', 'description', 'claude-code');
+      await client.uploadSession('d1ef6b6f', 'claude-code', 'other', 'description', '', undefined);
+      expect(mockUploadSession).toHaveBeenCalledWith('d1ef6b6f', 'claude-code', 'other', 'description', '', undefined);
     });
 
     it('uses original taskId (not Prisma sessionId) for upload', async () => {
@@ -187,8 +191,8 @@ describe('uploadCommand', () => {
       expect(importResult.sessionId).toBe('cmqyuh9bu0000abc');
 
       // Upload uses original taskId (from the importable session, not import result)
-      await client.uploadSession('ses_abc123', 'description', 'opencode');
-      expect(mockUploadSession).toHaveBeenCalledWith('ses_abc123', 'description', 'opencode');
+      await client.uploadSession('ses_abc123', 'opencode', 'other', 'description', '', undefined);
+      expect(mockUploadSession).toHaveBeenCalledWith('ses_abc123', 'opencode', 'other', 'description', '', undefined);
       // NOT 'cmqyuh9bu0000abc'
     });
 
@@ -209,7 +213,7 @@ describe('uploadCommand', () => {
       expect(importResult.imported).toBe(true);
 
       // Step 3: upload (using original taskId)
-      const uploadResult = await client.uploadSession(importable.sessions[0].id, 'description', 'opencode');
+      const uploadResult = await client.uploadSession(importable.sessions[0].id, 'opencode', 'other', 'description', '', undefined);
       expect(uploadResult.success).toBe(true);
 
       // Verify call order
@@ -219,28 +223,29 @@ describe('uploadCommand', () => {
   });
 
   describe('upload from Insight DB (--session mode)', () => {
-    it('uploads by taskId with description', async () => {
+    it('uploads by taskId with structured feedback', async () => {
       mockListSessions.mockResolvedValueOnce({ items: [], total: 0, page: 1 });
       mockGetSession.mockResolvedValueOnce(sampleSessionDetail);
       mockUploadSession.mockResolvedValueOnce(sampleUploadResult);
 
       const client = new InsightClient('http://localhost:21025', { retries: 0 });
-      const result = await client.uploadSession('ses_abc123', '提交人: gxh\n内容描述: test', 'opencode');
+      const result = await client.uploadSession('ses_abc123', 'opencode', 'cost_spike', 'Cost is too high', 'Help me reduce cost', 'user@test.com');
       expect(result.success).toBe(true);
-      expect(mockUploadSession).toHaveBeenCalledWith('ses_abc123', '提交人: gxh\n内容描述: test', 'opencode');
+      expect(mockUploadSession).toHaveBeenCalledWith('ses_abc123', 'opencode', 'cost_spike', 'Cost is too high', 'Help me reduce cost', 'user@test.com');
     });
   });
 
   describe('client.uploadSession method', () => {
-    it('sends POST to /api/ingest/upload-session with taskId, framework, description', async () => {
+    it('sends POST to /api/ingest/upload-session with taskId, framework, issueType, problemDescription', async () => {
       const client = new InsightClient('http://localhost:21025', { retries: 0, timeout: 5000 });
 
       mockUploadSession.mockResolvedValueOnce(sampleUploadResult);
-      const result = await client.uploadSession('ses_abc123', '提交人: gxh', 'opencode');
+      const result = await client.uploadSession('ses_abc123', 'opencode', 'other', 'Need help with this', '', undefined);
 
       expect(result.success).toBe(true);
-      expect(result.filename).toContain('kirinai_db_session');
-      expect(mockUploadSession).toHaveBeenCalledWith('ses_abc123', '提交人: gxh', 'opencode');
+      expect(result.submissionId).toBe('sub_abc123');
+      expect(result.status).toBe('pending');
+      expect(mockUploadSession).toHaveBeenCalledWith('ses_abc123', 'opencode', 'other', 'Need help with this', '', undefined);
     });
 
     it('defaults framework to "unknown" when not provided', () => {
@@ -253,52 +258,37 @@ describe('uploadCommand', () => {
     });
   });
 
-  describe('description template', () => {
-    it('description includes all 5 fields', () => {
-      const description = `提交人: gxh
-内容描述: Fix the build error in op code
-问题说明: none
-日志路径: /home/gxh/code/logs/opencode.db
-备注: 模型 claude-sonnet-4-6, 时间 2026-06-29`;
-
-      expect(description).toContain('提交人:');
-      expect(description).toContain('内容描述:');
-      expect(description).toContain('问题说明:');
-      expect(description).toContain('日志路径:');
-      expect(description).toContain('备注:');
-    });
-
-    it('auto-fills description from session data', () => {
-      const sessionInfo = {
-        query: 'Fix the build error',
-        user: 'gxh',
-        model: 'claude-sonnet-4-6',
-        taskId: 'ses_abc123',
-        framework: 'opencode',
-        sourcePath: '/home/gxh/code/logs/opencode.db',
+  describe('feedback structure', () => {
+    it('structured feedback includes issueType, problemDescription, helpRequest, contactEmail', () => {
+      const feedback = {
+        issueType: 'context_explosion',
+        problemDescription: 'Token usage grows exponentially per turn',
+        helpRequest: 'How can I reduce context window usage?',
+        contactEmail: 'dev@example.com',
       };
 
-      // Simulate template construction
-      const description = `提交人: ${sessionInfo.user}
-内容描述: ${sessionInfo.query}
-问题说明:
-日志路径: ${sessionInfo.sourcePath}
-备注: 模型 ${sessionInfo.model}`;
+      expect(feedback.issueType).toBe('context_explosion');
+      expect(feedback.problemDescription).toContain('Token usage');
+      expect(feedback.helpRequest).toContain('reduce context');
+      expect(feedback.contactEmail).toBe('dev@example.com');
+    });
 
-      expect(description).toContain('提交人: gxh');
-      expect(description).toContain('内容描述: Fix the build error');
-      expect(description).toContain('日志路径: /home/gxh/code/logs/opencode.db');
-      expect(description).toContain('模型 claude-sonnet-4-6');
+    it('valid issue types are within defined set', () => {
+      const validTypes = ['context_explosion', 'duplicate_reads', 'cost_spike', 'hallucination', 'other'];
+      expect(validTypes).toContain('context_explosion');
+      expect(validTypes).toContain('cost_spike');
+      expect(validTypes).toContain('other');
     });
   });
 
   describe('JSON output format', () => {
     it('upload result serializes correctly', () => {
-      const result: ApiUploadResponse = { success: true, filename: 'kirinai_db_session_ses_abc123_a1b2.db' };
+      const result: ApiUploadResponse = { success: true, submissionId: 'sub_abc123', status: 'pending' };
       const json = JSON.stringify(result);
       const parsed = JSON.parse(json);
       expect(parsed.success).toBe(true);
-      expect(parsed.filename).toContain('kirinai_db_session');
+      expect(parsed.submissionId).toBe('sub_abc123');
+      expect(parsed.status).toBe('pending');
     });
 
     it('combined import+upload result serializes correctly', () => {
@@ -336,33 +326,33 @@ describe('uploadCommand', () => {
     });
   });
 
-  describe('export pipeline validation', () => {
-    it('upload API accepts description in body', async () => {
+  describe('upload API validation', () => {
+    it('upload API sends structured feedback in body', async () => {
       const client = new InsightClient('http://localhost:21025', { retries: 0 });
 
       mockUploadSession.mockResolvedValueOnce(sampleUploadResult);
-      await client.uploadSession('ses_abc123', '提交人: gxh\n内容描述: test', 'opencode');
+      await client.uploadSession('ses_abc123', 'opencode', 'cost_spike', 'Cost is too high', 'Help please', 'user@test.com');
 
-      // Verify the uploadSession call includes description
+      // Verify the uploadSession call includes structured fields
       const callArgs = mockUploadSession.mock.calls[0];
-      expect(callArgs[1]).toBe('提交人: gxh\n内容描述: test');
+      expect(callArgs[0]).toBe('ses_abc123');        // taskId
+      expect(callArgs[1]).toBe('opencode');           // framework
+      expect(callArgs[2]).toBe('cost_spike');         // issueType
+      expect(callArgs[3]).toBe('Cost is too high');   // problemDescription
+      expect(callArgs[4]).toBe('Help please');        // helpRequest
+      expect(callArgs[5]).toBe('user@test.com');      // contactEmail
     });
 
-    it('commit message uses description (not "Add session <taskId>")', async () => {
-      // The upload route uses description as commit message:
-      // const commitMsg = description ?? `Add session ${taskId}`;
-      // When description is provided, it should be used directly
-      const description = '提交人: gxh\n内容描述: Fix build';
-      const commitMsg = description ?? `Add session ses_abc123`;
-      expect(commitMsg).toBe(description);
-      expect(commitMsg).not.toContain('Add session');
+    it('problemDescription is required (empty string fails validation)', () => {
+      // problemDescription is the minimum required field (besides taskId/issueType)
+      const problemDescription = '';
+      const isValid = problemDescription.trim().length > 0;
+      expect(isValid).toBe(false);
     });
 
-    it('commit message falls back to "Add session" when no description', () => {
-      const description: string | undefined = undefined;
-      const taskId = 'ses_abc123';
-      const commitMsg = description ?? `Add session ${taskId}`;
-      expect(commitMsg).toBe('Add session ses_abc123');
+    it('contactEmail is optional and can be undefined', () => {
+      const contactEmail: string | undefined = undefined;
+      expect(contactEmail).toBeUndefined();
     });
   });
 });

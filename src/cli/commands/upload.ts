@@ -15,9 +15,6 @@ import type { ApiImportableSession, ApiImportableSessionsResponse } from '../typ
 import readline from 'node:readline';
 import { execSync } from 'node:child_process';
 import fs from 'node:fs';
-import path from 'node:path';
-import os from 'node:os';
-import crypto from 'node:crypto';
 
 const IMPORT_COLUMNS: TableColumn[] = [
   { key: 'id', label: 'Session ID', width: 20 },
@@ -56,30 +53,47 @@ async function inputPrompt(label: string, defaultVal: string): Promise<string> {
   });
 }
 
-async function collectDescription(sessionInfo: { query?: string; user?: string; model?: string; taskId?: string; framework?: string; sourcePath?: string }): Promise<string> {
-  const timeRange = new Date().toISOString().split('T')[0];
-  const query = sessionInfo.query ?? '';
-  const user = sessionInfo.user ?? '';
-  const model = sessionInfo.model ?? '';
-  const taskId = sessionInfo.taskId ?? '';
-  const framework = sessionInfo.framework ?? '';
-  const sourcePath = sessionInfo.sourcePath ?? '';
+const ISSUE_TYPE_OPTIONS = [
+  { value: 'context_explosion', label: '上下文爆炸 (Context Explosion)' },
+  { value: 'duplicate_reads', label: '重复读文件 (Duplicate Reads)' },
+  { value: 'cost_spike', label: '费用异常 (Cost Spike)' },
+  { value: 'hallucination', label: '模型幻觉 (Hallucination)' },
+  { value: 'other', label: '其他 (Other)' },
+];
 
+async function collectFeedback(): Promise<{
+  issueType: string;
+  problemDescription: string;
+  helpRequest: string;
+  contactEmail?: string;
+}> {
   console.log('');
-  console.log(theme.muted('填写提交信息（直接回车使用默认值）：'));
+  console.log(theme.muted('填写反馈信息（直接回车使用默认值）：'));
   console.log('');
 
-  const submitter = await inputPrompt('提交人', user || '');
-  const contentDesc = await inputPrompt('内容描述', query || '');
-  const issueDesc = await inputPrompt('问题说明', '');
-  const logPath = await inputPrompt('日志路径', sourcePath || `taskId ${taskId}, 框架 ${framework}`);
-  const notes = await inputPrompt('备注', `模型 ${model}, 时间 ${timeRange}`);
+  console.log('问题类型:');
+  ISSUE_TYPE_OPTIONS.forEach((t, i) => {
+    console.log(`  ${i + 1}. ${t.label}`);
+  });
+  const issueTypeInput = await inputPrompt('选择问题类型 (1-5)', '5');
+  const issueTypeIdx = parseInt(issueTypeInput, 10);
+  const issueType = (issueTypeIdx >= 1 && issueTypeIdx <= ISSUE_TYPE_OPTIONS.length)
+    ? ISSUE_TYPE_OPTIONS[issueTypeIdx - 1].value
+    : 'other';
 
-  return `提交人: ${submitter}
-内容描述: ${contentDesc}
-问题说明: ${issueDesc}
-日志路径: ${logPath}
-备注: ${notes}`;
+  const problemDescription = await inputPrompt('问题描述', '');
+  if (!problemDescription.trim()) {
+    throw new Error('问题描述不能为空');
+  }
+  const helpRequest = await inputPrompt('需要什么帮助', '');
+  const contactEmail = await inputPrompt('联系邮箱（可选）', '');
+
+  return {
+    issueType,
+    problemDescription,
+    helpRequest: helpRequest || '',
+    contactEmail: contactEmail || undefined,
+  };
 }
 
 function detectSourceType(filePath: string): 'opencode-db' | 'claude-jsonl' | string {
@@ -92,13 +106,6 @@ function detectSourceType(filePath: string): 'opencode-db' | 'claude-jsonl' | st
     if (stat.isDirectory()) return 'claude-jsonl';
   } catch {}
   return 'claude-jsonl';
-}
-
-const CANNBAY_PULL_URL = 'https://gitcode.com/guanxinghua/CANNBay.git';
-const CANNBAY_PUSH_URL = Buffer.from('aHR0cHM6Ly9ndWFueGluZ2h1YTpwc3F5WXAyYnpFRkI0eDVQRlVTV0dMS3lAZ2l0Y29kZS5jb20vZ3VhbnhpbmdodWEvQ0FOTkJheS5naXQ=', 'base64').toString();
-
-function runGit(cmd: string, cwd: string) {
-  return execSync(cmd, { cwd, stdio: 'pipe', timeout: 60_000 });
 }
 
 async function ensureBackend(client: InsightClient): Promise<boolean> {
@@ -156,15 +163,17 @@ async function selectPrompt(sessions: ApiImportableSession[]): Promise<ApiImport
 export function uploadCommand(): Command {
   const cmd = new Command('upload');
   cmd
-    .description('Upload session to CANNBay (auto-starts backend if needed)')
+    .description('Upload session to KirinAI Cloud (auto-starts backend if needed)')
     .option('--session <taskId>', 'Upload from Insight DB by taskId')
     .option('--framework <framework>', 'Framework type (auto-detected from file)')
     .option('--source <type>', 'Source type — auto-detected from --file if omitted')
     .option('--file <path>', 'Source file path for direct upload')
     .option('--list', 'List importable sessions from source file')
     .option('--session-id <id>', 'Upload specific session from source file by ID')
-    .option('--description <text>', 'Description text (skip interactive prompt)')
-    .option('--interactive', 'Interactive prompt for description fields (default when no --description)')
+    .option('--issue-type <type>', 'Issue type: context_explosion, duplicate_reads, cost_spike, hallucination, other')
+    .option('--problem <text>', 'Problem description (required; skip interactive prompt)')
+    .option('--help-request <text>', 'What help is needed')
+    .option('--email <email>', 'Contact email for notifications')
     .option('--yes', 'Skip confirmation prompt')
     .option('--json', 'Output result as JSON')
     .action(async (opts, command) => {
@@ -192,8 +201,11 @@ export function uploadCommand(): Command {
       }
 
       try {
-        let description = opts.description ?? '';
-        const needInteractive = !opts.description && !opts.json;
+        let issueType = opts.issueType ?? 'other';
+        let problemDescription = opts.problem ?? '';
+        let helpRequest = opts.helpRequest ?? '';
+        let contactEmail: string | undefined = opts.email ?? undefined;
+        const needInteractive = !opts.problem && !opts.json;
 
         // Mode 1: Upload from Insight DB by taskId
         if (opts.session) {
@@ -201,33 +213,31 @@ export function uploadCommand(): Command {
           const framework = opts.framework ?? 'unknown';
 
           if (needInteractive) {
-            const sessionDetail = await client.getSession(taskId);
-            description = await collectDescription({
-              query: sessionDetail.query ?? undefined,
-              user: sessionDetail.user ?? undefined,
-              model: sessionDetail.model ?? undefined,
-              taskId,
-              framework,
-              sourcePath: undefined,
-            });
+            const feedback = await collectFeedback();
+            issueType = feedback.issueType;
+            problemDescription = feedback.problemDescription;
+            helpRequest = feedback.helpRequest;
+            contactEmail = feedback.contactEmail;
           }
 
           if (!opts.json) {
             console.log(formatHeader(`Upload Session: ${taskId}`));
             console.log(formatDivider());
-            console.log(theme.muted('Description:'));
-            console.log(theme.muted(description));
+            console.log(`  Issue Type: ${issueType}`);
+            console.log(`  Problem: ${problemDescription}`);
+            if (helpRequest) console.log(`  Help Request: ${helpRequest}`);
           }
 
-          const result = await client.uploadSession(taskId, description, framework);
+          const result = await client.uploadSession(taskId, framework, issueType, problemDescription, helpRequest, contactEmail);
 
           if (opts.json) {
             console.log(JSON.stringify(result, null, 2));
             return;
           }
 
-          console.log(formatSuccess(`✓ Uploaded session ${taskId} → CANNBay`));
-          console.log(theme.muted(`  Filename: ${result.filename}`));
+          console.log(formatSuccess(`✓ Uploaded session ${taskId} → KirinAI Cloud`));
+          console.log(theme.muted(`  Submission ID: ${result.submissionId}`));
+          console.log(theme.muted(`  Status: ${result.status}`));
           return;
         }
 
@@ -282,14 +292,11 @@ export function uploadCommand(): Command {
           const resolvedFramework = source === 'opencode-db' ? 'opencode' : source === 'claude-jsonl' ? 'claude-code' : source;
 
           if (needInteractive) {
-            description = await collectDescription({
-              query: target.firstQuery ?? undefined,
-              user: undefined,
-              model: target.model ?? undefined,
-              taskId: target.id,
-              framework: resolvedFramework,
-              sourcePath: filePath,
-            });
+            const feedback = await collectFeedback();
+            issueType = feedback.issueType;
+            problemDescription = feedback.problemDescription;
+            helpRequest = feedback.helpRequest;
+            contactEmail = feedback.contactEmail;
           }
 
           if (!opts.json) {
@@ -297,8 +304,9 @@ export function uploadCommand(): Command {
             console.log(formatDivider());
             console.log(`  Session: ${target.id} — ${target.firstQuery ?? '—'}`);
             console.log(`  File: ${filePath}`);
-            console.log(theme.muted('Description:'));
-            console.log(theme.muted(description));
+            console.log(`  Issue Type: ${issueType}`);
+            console.log(`  Problem: ${problemDescription}`);
+            if (helpRequest) console.log(`  Help Request: ${helpRequest}`);
             console.log('');
           }
 
@@ -314,18 +322,19 @@ export function uploadCommand(): Command {
           if (!opts.json) console.log(theme.muted('  Importing into Insight DB...'));
           const importResult = await client.importSession(source, filePath, target.id);
 
-          // Step 2: Upload to CANNBay (use original taskId + resolved framework to find session)
-          if (!opts.json) console.log(theme.muted('  Uploading to CANNBay...'));
-          const uploadResult = await client.uploadSession(target.id, description, resolvedFramework);
+          // Step 2: Upload to KirinAI Cloud (use original taskId + resolved framework to find session)
+          if (!opts.json) console.log(theme.muted('  Uploading to KirinAI Cloud...'));
+          const uploadResult = await client.uploadSession(target.id, resolvedFramework, issueType, problemDescription, helpRequest, contactEmail);
 
           if (opts.json) {
             console.log(JSON.stringify({ import: importResult, upload: uploadResult }, null, 2));
             return;
           }
 
-          console.log(formatSuccess(`✓ Imported & uploaded session ${target.id} → CANNBay`));
+          console.log(formatSuccess(`✓ Imported & uploaded session ${target.id} → KirinAI Cloud`));
           console.log(theme.muted(`  Insight taskId: ${importResult.sessionId}`));
-          console.log(theme.muted(`  Filename: ${uploadResult.filename}`));
+          console.log(theme.muted(`  Submission ID: ${uploadResult.submissionId}`));
+          console.log(theme.muted(`  Status: ${uploadResult.status}`));
           return;
         }
 

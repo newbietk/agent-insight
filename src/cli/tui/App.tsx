@@ -60,9 +60,9 @@ function App({ config }: TuiAppProps) {
       <Box flexGrow={1}>
         {uploadTarget ? (
           <ConfirmDialog
-            message={`Upload session "${uploadTarget}" to CANNBay?`}
+            message={`Upload session "${uploadTarget}" to KirinAI Cloud?`}
             onConfirm={async () => {
-              await client.uploadSession(uploadTarget, '');
+              await client.uploadSession(uploadTarget, 'unknown', 'other', 'Uploaded from TUI');
               setUploadTarget(null);
             }}
             onCancel={() => setUploadTarget(null)}

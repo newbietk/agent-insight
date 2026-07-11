@@ -34,7 +34,7 @@ Log file locations:
 
 Open `http://localhost:21025`. After importing a log file, click a session to explore 9 analysis tabs.
 
-Web UI also supports: exporting sessions to standalone SQLite or hierarchical Markdown; uploading sessions to CANNBay with a description dialog.
+Web UI also supports: exporting sessions to standalone SQLite or hierarchical Markdown; uploading sessions to KirinAI Cloud with structured feedback.
 
 ## Option 2: CLI Upload + Web Analysis
 
@@ -52,4 +52,4 @@ npx tsx src/cli/index.ts upload --file ./logs/                 # Claude JSONL (d
 
 Upload triggers an interactive description prompt. Backend auto-starts if not running and stops after upload completes.
 
-After upload, view analysis in Web UI: click the **CANNBay** button during import to select and import DB files directly from the repository — no manual download needed.
+After upload, view analysis in Web UI: the uploaded session is imported into the local Insight DB and ready for analysis immediately.

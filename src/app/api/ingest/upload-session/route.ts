@@ -9,64 +9,73 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { exportSession } from '@/lib/ingest/export-service';
 import { prisma } from '@/lib/db';
-import crypto from 'node:crypto';
+import { VERSION } from '@/lib/version';
 import fs from 'node:fs';
-import path from 'node:path';
 import os from 'node:os';
-import { execSync } from 'node:child_process';
+import path from 'node:path';
+import crypto from 'node:crypto';
 
-const CANNBAY_PULL_URL = 'https://gitcode.com/guanxinghua/CANNBay.git';
-const CANNBAY_PUSH_URL = Buffer.from('aHR0cHM6Ly9ndWFueGluZ2h1YTpwc3F5WXAyYnpFRkI0eDVQRlVTV0dMS3lAZ2l0Y29kZS5jb20vZ3VhbnhpbmdodWEvQ0FOTkJheS5naXQ=', 'base64').toString();
-
-function runGit(cmd: string, cwd: string) {
-  return execSync(cmd, { cwd, stdio: 'pipe', timeout: 60_000 });
-}
+const CLOUD_URL = process.env.KIRINAI_CLOUD_URL || 'http://localhost:21026';
 
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { taskId, framework, description } = body;
+    const { taskId, framework, issueType, problemDescription, helpRequest, contactEmail } = body;
 
     if (!taskId) {
       return NextResponse.json({ error: 'Missing taskId' }, { status: 400 });
     }
+    if (!issueType) {
+      return NextResponse.json({ error: 'Missing issueType' }, { status: 400 });
+    }
+    if (!problemDescription) {
+      return NextResponse.json({ error: 'Missing problemDescription' }, { status: 400 });
+    }
 
+    // Export session to SQLite
     const randomSuffix = crypto.randomBytes(4).toString('hex');
-    const filename = `kirinai_db_session_${taskId}_${randomSuffix}.db`;
-
-    const tmpDir = os.tmpdir();
-    const dbPath = path.join(tmpDir, `upload_${randomSuffix}.db`);
-    const cloneDir = path.join(tmpDir, `cannbay_${randomSuffix}`);
+    const dbPath = path.join(os.tmpdir(), `upload_${randomSuffix}.db`);
 
     try {
       const filePath = await exportSession(taskId, dbPath, prisma, framework);
+      const sessionBuffer = fs.readFileSync(filePath);
+      const filename = `session_${taskId}_${randomSuffix}.db`;
 
-      try {
-        runGit(`git clone "${CANNBAY_PULL_URL}" "${cloneDir}"`, tmpDir);
-      } catch {
-        fs.mkdirSync(cloneDir, { recursive: true });
-        runGit('git init', cloneDir);
-        runGit(`git remote add origin "${CANNBAY_PULL_URL}"`, cloneDir);
+      // Read session metadata
+      const where: Record<string, string> = { taskId };
+      if (framework) where.framework = framework;
+      const session = await prisma.session.findFirst({ where });
+
+      // Build multipart form data for cloud upload
+      const formData = new FormData();
+      formData.append('taskId', taskId);
+      formData.append('issueType', issueType);
+      formData.append('problemDescription', problemDescription);
+      formData.append('helpRequest', helpRequest || '');
+      if (contactEmail) formData.append('contactEmail', contactEmail);
+      formData.append('framework', framework ?? 'unknown');
+      formData.append('model', session?.model ?? '');
+      formData.append('totalTokens', String(session?.totalTokens ?? 0));
+      formData.append('totalCost', String(session?.totalCost ?? 0));
+      formData.append('turnCount', String(session?.totalLlmCallCount ?? 0));
+      formData.append('kirinaiVersion', VERSION);
+      formData.append('sessionData', new Blob([sessionBuffer]), filename);
+
+      // POST to KirinAI-Cloud
+      const res = await fetch(`${CLOUD_URL}/api/submissions`, {
+        method: 'POST',
+        body: formData,
+      });
+
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({ error: 'Cloud upload failed' }));
+        return NextResponse.json({ error: err.error || `Cloud returned ${res.status}` }, { status: 502 });
       }
 
-      fs.copyFileSync(filePath, path.join(cloneDir, filename));
-
-      runGit('git add .', cloneDir);
-      const commitMsg = description ?? `Add session ${taskId}`;
-      const msgFile = path.join(cloneDir, '_commit_msg.txt');
-      fs.writeFileSync(msgFile, commitMsg);
-      runGit(`git commit -F "${msgFile}"`, cloneDir);
-      try { fs.unlinkSync(msgFile); } catch {}
-
-      // Set push URL with credentials and force branch name
-      runGit(`git remote set-url origin "${CANNBAY_PUSH_URL}"`, cloneDir);
-      runGit('git branch -M master', cloneDir);
-      runGit('git push -u origin master', cloneDir);
-
-      return NextResponse.json({ success: true, filename });
+      const result = await res.json();
+      return NextResponse.json({ success: true, submissionId: result.id, status: result.status });
     } finally {
       try { fs.unlinkSync(dbPath); } catch {}
-      try { fs.rmSync(cloneDir, { recursive: true, force: true }); } catch {}
     }
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unknown error';

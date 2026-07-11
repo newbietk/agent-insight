@@ -398,7 +398,8 @@ export interface ApiDeleteResponse {
 
 export interface ApiUploadResponse {
   success: boolean;
-  filename: string;
+  submissionId: string;
+  status: string;
 }
 
 export interface ApiAIProviderConfig {

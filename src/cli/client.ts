@@ -235,11 +235,21 @@ export class InsightClient {
     return { size: buffer.length };
   }
 
-  async uploadSession(taskId: string, description: string, framework?: string): Promise<ApiUploadResponse> {
+  async uploadSession(
+    taskId: string,
+    framework: string,
+    issueType: string,
+    problemDescription: string,
+    helpRequest?: string,
+    contactEmail?: string,
+  ): Promise<ApiUploadResponse> {
     return this.request<ApiUploadResponse>('POST', '/api/ingest/upload-session', undefined, {
       taskId,
       framework: framework ?? 'unknown',
-      description,
+      issueType,
+      problemDescription,
+      helpRequest: helpRequest || '',
+      contactEmail: contactEmail || undefined,
     }, 120000);
   }
 }

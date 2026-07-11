@@ -34,7 +34,7 @@ LLM 编码 Agent 的 Session 级可观测工具。辅助长上下文分析、模
 
 浏览器打开 `http://localhost:21025`。导入日志文件后，点击 session 进入 9 个分析 Tab。
 
-Web UI 还支持：导出 session 为独立 SQLite 或层级 Markdown；上传 session 到 CANNBay（带提交信息对话框）。
+Web UI 还支持：导出 session 为独立 SQLite 或层级 Markdown；上传 session 到 KirinAI Cloud（带结构化反馈表单）。
 
 ## 方式二：CLI 上传 + Web 分析
 
@@ -52,4 +52,4 @@ npx tsx src/cli/index.ts upload --file ./logs/                 # Claude JSONL（
 
 上传后会交互式填写提交信息。后端自动启动，上传完成后自动关闭。
 
-上传后在 Web UI 上查看分析：导入时点击 **CANNBay** 按钮，直接从仓库选择 DB 文件导入，无需手动下载。
+上传后在 Web UI 上查看分析：上传后 session 会自动导入本地 Insight DB，可直接开始分析。

@@ -22,7 +22,7 @@ import { Input } from "@/components/ui/input"
 import { Checkbox } from "@/components/ui/checkbox"
 import { saveImportHistory, type ImportHistoryEntry } from "@/components/ImportHistory"
 import { Button } from "@/components/ui/button"
-import { DownloadIcon, LoaderIcon, FolderIcon, FileIcon, ChevronRightIcon, ArrowUpIcon, GlobeIcon, SearchIcon } from "lucide-react"
+import { DownloadIcon, LoaderIcon, FolderIcon, FileIcon, ChevronRightIcon, ArrowUpIcon } from "lucide-react"
 import { toast } from "sonner"
 import {
   Table,
@@ -56,29 +56,12 @@ interface DirEntry {
   importableType: string | null
 }
 
-interface CannbaySession {
-  filename: string
-  taskId: string
-  query: string | null
-  model: string | null
-  startTime: string | null
-  totalTokens: number
-  turnCount: number
-  size: number
-}
-
-type Step = "input" | "browse" | "select" | "cannbay" | "importing"
+type Step = "input" | "browse" | "select" | "importing"
 
 function formatSize(size: number): string {
   if (size < 1024) return `${size}B`
   if (size < 1048576) return `${(size / 1024).toFixed(1)}K`
   return `${(size / 1048576).toFixed(1)}M`
-}
-
-function formatTokens(n: number): string {
-  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`
-  if (n >= 1_000) return `${(n / 1_000).toFixed(1)}K`
-  return String(n)
 }
 
 function formatTime(iso: string): string {
@@ -94,7 +77,7 @@ export function LocalFileImport() {
   const [open, setOpen] = useState(false)
   const [step, setStep] = useState<Step>("input")
   const [filePath, setFilePath] = useState("/")
-  const [sourceType, setSourceType] = useState<"opencode-db" | "claude-jsonl" | "cannbay" | typeof BRAND_SOURCE_TYPE>("opencode-db")
+  const [sourceType, setSourceType] = useState<"opencode-db" | "claude-jsonl" | typeof BRAND_SOURCE_TYPE>("opencode-db")
   const [sessions, setSessions] = useState<SessionPreview[]>([])
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [importStatuses, setImportStatuses] = useState<ImportStatus[]>([])
@@ -103,10 +86,6 @@ export function LocalFileImport() {
   const [currentDir, setCurrentDir] = useState<string | null>(null)
   const [parentDir, setParentDir] = useState<string | null>(null)
   const [browseLoading, setBrowseLoading] = useState(false)
-  const [cannbaySessions, setCannbaySessions] = useState<CannbaySession[]>([])
-  const [cannbaySelected, setCannbaySelected] = useState<Set<string>>(new Set())
-  const [cannbayLoading, setCannbayLoading] = useState(false)
-  const [cannbayFilter, setCannbayFilter] = useState("")
 
   function resetState() {
     setStep("input")
@@ -120,10 +99,6 @@ export function LocalFileImport() {
     setCurrentDir(null)
     setParentDir(null)
     setBrowseLoading(false)
-    setCannbaySessions([])
-    setCannbaySelected(new Set())
-    setCannbayLoading(false)
-    setCannbayFilter("")
   }
 
   async function browseDirectory(dirPath: string) {
@@ -270,101 +245,6 @@ export function LocalFileImport() {
     browseDirectory(filePath.trim() || "/")
   }
 
-  async function handleFetchCannbay() {
-    setCannbayLoading(true)
-    setError(null)
-    setCannbaySessions([])
-    setCannbaySelected(new Set())
-    try {
-      const res = await fetch("/api/ingest/import-from-cannbay", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "list" }),
-      })
-      const data = await res.json()
-      if (!res.ok) {
-        setError(data.error ?? "Failed to fetch CANNBay sessions")
-        setCannbayLoading(false)
-        return
-      }
-      if (data.sessions?.length === 0) {
-        setError("No sessions found in CANNBay")
-        setCannbayLoading(false)
-        return
-      }
-      setCannbaySessions(data.sessions)
-      setStep("cannbay")
-      setCannbayLoading(false)
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Network error")
-      setCannbayLoading(false)
-    }
-  }
-
-  function toggleCannbaySelection(filename: string) {
-    setCannbaySelected(prev => {
-      const next = new Set(prev)
-      if (next.has(filename)) next.delete(filename)
-      else next.add(filename)
-      return next
-    })
-  }
-
-  async function handleImportCannbay() {
-    if (cannbaySelected.size === 0) return
-    setStep("importing")
-
-    const filenames = Array.from(cannbaySelected)
-    const statuses: ImportStatus[] = filenames.map(f => {
-      const session = cannbaySessions.find(s => s.filename === f)
-      return {
-        sessionId: session?.taskId ?? f,
-        status: "pending" as const,
-      }
-    })
-    setImportStatuses(statuses)
-
-    try {
-      const res = await fetch("/api/ingest/import-from-cannbay", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "import", filenames }),
-      })
-      const data = await res.json()
-      if (!res.ok) {
-        setError(data.error ?? "Import from CANNBay failed")
-        setImportStatuses(prev => prev.map(s => ({ ...s, status: "error" as const, message: data.error ?? "Import failed" })))
-        return
-      }
-
-      const results: Array<{ filename: string; taskId: string; imported: boolean; query: string | null; error?: string }> = data.results ?? []
-      setImportStatuses(prev => prev.map((s, i) => {
-        const result = results[i]
-        if (!result) return s
-        return {
-          ...s,
-          sessionId: result.taskId || s.sessionId,
-          status: result.imported ? "success" as const : "error" as const,
-          message: result.imported ? "Imported" : (result.error ?? "Already exists"),
-        }
-      }))
-
-      const sessionPreviews: SessionPreview[] = results
-        .filter(r => r.imported)
-        .map(r => ({
-          id: r.taskId,
-          createdAt: new Date().toISOString(),
-          firstQuery: r.query ?? null,
-          turnCount: 0,
-          model: null,
-        }))
-      setSessions(sessionPreviews)
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Network error")
-      setImportStatuses(prev => prev.map(s => ({ ...s, status: "error" as const, message: e instanceof Error ? e.message : "Network error" })))
-    }
-  }
-
   function toggleSelection(id: string) {
     setSelectedIds(prev => {
       const next = new Set(prev)
@@ -446,8 +326,8 @@ export function LocalFileImport() {
           turnCount: session?.turnCount ?? 0,
           status: s.status === "success" ? "success" as const : "error" as const,
           query: session?.firstQuery ?? null,
-          filePath: sourceType === "cannbay" ? "CANNBay" : filePath.trim(),
-          sourceType: sourceType === "cannbay" ? BRAND_SOURCE_TYPE : sourceType,
+          filePath: filePath.trim(),
+          sourceType,
         }
       })
       saveImportHistory(entries)
@@ -477,10 +357,9 @@ export function LocalFileImport() {
         <DialogHeader>
           <DialogTitle>Import Session</DialogTitle>
           <DialogDescription>
-            {step === "input" && "Import session data from local files or CANNBay"}
+            {step === "input" && "Import session data from local files"}
             {step === "browse" && "Browse directories and select a file to import"}
             {step === "select" && "Select sessions to import"}
-            {step === "cannbay" && "Select sessions from CANNBay to import"}
             {step === "importing" && `Importing ${importStatuses.filter(s => s.status === "success" || s.status === "error").length}/${importStatuses.length} sessions...`}
           </DialogDescription>
         </DialogHeader>
@@ -511,17 +390,8 @@ export function LocalFileImport() {
                 >
                   {BRAND_NAME} (SQLite)
                 </Button>
-                <Button
-                  variant={sourceType === "cannbay" ? "default" : "outline"}
-                  size="sm"
-                  onClick={() => { setSourceType("cannbay"); handleFetchCannbay() }}
-                >
-                  <GlobeIcon className="size-3.5 mr-1" />
-                  CANNBay
-                </Button>
               </div>
             </div>
-            {sourceType !== "cannbay" && (
             <div>
               <label className="text-sm font-medium mb-1.5 block">File Path</label>
               <div className="flex gap-2">
@@ -557,20 +427,6 @@ export function LocalFileImport() {
                 <p className="text-blue-500 dark:text-blue-400">Click Browse to explore directories and select files interactively</p>
               </div>
             </div>
-            )}
-            {sourceType === "cannbay" && !cannbayLoading && cannbaySessions.length === 0 && !error && (
-              <div className="text-sm text-muted-foreground py-4 text-center">
-                <GlobeIcon className="size-5 mx-auto mb-2 text-blue-500" />
-                <p>Fetch available sessions from CANNBay Git repository</p>
-                <p className="text-xs mt-1">Sessions uploaded by other users can be imported here</p>
-              </div>
-            )}
-            {sourceType === "cannbay" && cannbayLoading && (
-              <div className="flex items-center gap-2 py-4 justify-center">
-                <LoaderIcon className="size-4 animate-spin" />
-                <span className="text-sm text-muted-foreground">Fetching sessions from CANNBay...</span>
-              </div>
-            )}
             {error && <p className="text-sm text-red-600 dark:text-red-400">{error}</p>}
           </div>
         )}
@@ -704,96 +560,6 @@ export function LocalFileImport() {
           </div>
         )}
 
-        {step === "cannbay" && (
-          <div className="space-y-3">
-            <div className="flex items-center gap-2">
-              <Input
-                placeholder="Search by query, model, or task ID..."
-                value={cannbayFilter}
-                onChange={(e) => setCannbayFilter(e.target.value)}
-                className="flex-1"
-              />
-              <SearchIcon className="size-4 text-muted-foreground" />
-            </div>
-            {(() => {
-              const q = cannbayFilter.toLowerCase()
-              const filtered = cannbaySessions.filter(s =>
-                !q || (s.query?.toLowerCase().includes(q) ?? false) || (s.model?.toLowerCase().includes(q) ?? false) || s.taskId.toLowerCase().includes(q) || s.filename.toLowerCase().includes(q)
-              )
-              const allFilteredSelected = filtered.length > 0 && filtered.every(s => cannbaySelected.has(s.filename))
-              return (
-                <>
-                  <div className="flex items-center gap-2 mb-2">
-                    <Checkbox checked={allFilteredSelected} onCheckedChange={() => {
-                      if (allFilteredSelected) {
-                        setCannbaySelected(prev => {
-                          const next = new Set(prev)
-                          for (const s of filtered) next.delete(s.filename)
-                          return next
-                        })
-                      } else {
-                        setCannbaySelected(prev => {
-                          const next = new Set(prev)
-                          for (const s of filtered) next.add(s.filename)
-                          return next
-                        })
-                      }
-                    }} />
-                    <span className="text-sm text-muted-foreground">
-                      {filtered.length === cannbaySessions.length
-                        ? `Select all (${cannbaySessions.length} sessions)`
-                        : `${filtered.length} of ${cannbaySessions.length} shown`}
-                    </span>
-                  </div>
-                  <div className="max-h-[320px] overflow-y-auto border rounded-lg">
-                    <Table>
-                      <TableHeader>
-                        <TableRow>
-                          <TableHead className="w-[40px]"></TableHead>
-                          <TableHead className="max-w-[180px]">First Query</TableHead>
-                          <TableHead>Time</TableHead>
-                          <TableHead className="max-w-[140px]">Model</TableHead>
-                          <TableHead>Tokens</TableHead>
-                          <TableHead>Turns</TableHead>
-                          <TableHead className="w-[70px]">Size</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {filtered.length === 0 && (
-                          <TableRow>
-                            <TableCell colSpan={7} className="text-center text-muted-foreground py-4">
-                              No sessions match your search
-                            </TableCell>
-                          </TableRow>
-                        )}
-                        {filtered.map(s => (
-                          <TableRow key={s.filename} className={cannbaySelected.has(s.filename) ? "bg-primary/5" : ""}>
-                            <TableCell>
-                              <Checkbox checked={cannbaySelected.has(s.filename)} onCheckedChange={() => toggleCannbaySelection(s.filename)} />
-                            </TableCell>
-                            <TableCell className="max-w-[180px] truncate text-xs" title={s.query ?? s.taskId}>
-                              {s.query ?? <span className="text-muted-foreground">{s.taskId}</span>}
-                            </TableCell>
-                            <TableCell className="text-xs whitespace-nowrap">{s.startTime ? formatTime(s.startTime) : "—"}</TableCell>
-                            <TableCell className="text-xs max-w-[140px] truncate">{s.model ?? "—"}</TableCell>
-                            <TableCell className="text-xs tabular-nums">{s.totalTokens > 0 ? formatTokens(s.totalTokens) : "—"}</TableCell>
-                            <TableCell className="text-xs tabular-nums">{s.turnCount}</TableCell>
-                            <TableCell className="text-xs tabular-nums">{formatSize(s.size)}</TableCell>
-                          </TableRow>
-                        ))}
-                      </TableBody>
-                    </Table>
-                  </div>
-                </>
-              )
-            })()}
-            {cannbaySelected.size === 0 && (
-              <p className="text-sm text-muted-foreground">Select at least one session to import</p>
-            )}
-            {error && <p className="text-sm text-red-600 dark:text-red-400">{error}</p>}
-          </div>
-        )}
-
         {step === "importing" && (
           <div className="space-y-2 max-h-[300px] overflow-y-auto">
             <div className="flex items-center gap-2 text-xs text-muted-foreground pb-1 border-b">
@@ -824,14 +590,9 @@ export function LocalFileImport() {
         )}
 
         <DialogFooter>
-          {step === "input" && sourceType !== "cannbay" && (
+          {step === "input" && (
             <Button onClick={handleLoadSessions} disabled={!filePath.trim()}>
               {sourceType === "claude-jsonl" && filePath.trim().endsWith(".jsonl") ? "Import" : "Load Sessions"}
-            </Button>
-          )}
-          {step === "input" && sourceType === "cannbay" && (
-            <Button onClick={handleFetchCannbay} disabled={cannbayLoading}>
-              {cannbayLoading ? "Fetching..." : "Fetch from CANNBay"}
             </Button>
           )}
           {step === "select" && (
@@ -841,16 +602,6 @@ export function LocalFileImport() {
               </Button>
               <Button onClick={handleImportSelected} disabled={selectedIds.size === 0}>
                 Import {selectedIds.size > 0 ? `${selectedIds.size} Selected` : ""}
-              </Button>
-            </>
-          )}
-          {step === "cannbay" && (
-            <>
-              <Button variant="outline" onClick={() => { setStep("input"); setSourceType("cannbay"); setError(null) }}>
-                Back
-              </Button>
-              <Button onClick={handleImportCannbay} disabled={cannbaySelected.size === 0}>
-                Import {cannbaySelected.size > 0 ? `${cannbaySelected.size} Selected` : ""}
               </Button>
             </>
           )}
