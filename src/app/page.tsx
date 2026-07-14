@@ -10,6 +10,7 @@ import { MetricCards } from '@/components/MetricCards';
 import { SessionList } from '@/components/SessionList';
 import { ScanDialog } from '@/components/ScanDialog';
 import { LocalFileImport } from '@/components/LocalFileImport';
+import { SyncAllButton } from '@/components/SyncAllButton';
 import { ImportHistory } from '@/components/ImportHistory';
 import { VERSION_DISPLAY } from '@/lib/version';
 import { BRAND_NAME } from '@/lib/branding';
@@ -139,6 +140,7 @@ export default async function Home({
           <div className="flex items-center gap-3">
             <ScanDialog />
             <LocalFileImport />
+            <SyncAllButton sessions={items.filter(i => i.sourcePath).map(i => ({ sessionId: i.sessionId, taskId: i.taskId, framework: i.framework }))} />
             <a href="/monitor" className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md border text-sm font-medium hover:bg-accent/30 transition-colors">
               <BarChart3Icon className="size-4 text-pink-500" />
               上下文监控

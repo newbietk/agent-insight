@@ -1,6 +1,6 @@
 {
   "name": "kirinai-insight",
-  "version": "0.0.1",
+  "version": "0.2.0",
   "type": "module",
   "bin": {
     "kirinai-insight": "./bin/kai.mjs",

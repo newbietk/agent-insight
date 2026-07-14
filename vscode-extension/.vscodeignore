@@ -1,0 +1,8 @@
+.vscode/**
+node_modules
+!node_modules/sql.js/**
+src/**
+!src/**/*.js
+.gitignore
+tsconfig.json
+**/*.tsbuildinfo

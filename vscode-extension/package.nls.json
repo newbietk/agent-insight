@@ -1,0 +1,17 @@
+{
+  "displayName": "KirinAI Insight",
+  "description": "LLM Agent session observability — analyze Claude Code sessions for tokens, cost, context growth, and more",
+  "command.import.title": "Import Session",
+  "command.refreshSessions.title": "Refresh Sessions",
+  "command.openSession.title": "Open Session Detail",
+  "command.deleteSession.title": "Delete Session",
+  "command.syncSession.title": "Sync from Source",
+  "command.syncAll.title": "Sync All Sessions",
+  "viewContainer.title": "KirinAI Insight",
+  "view.sessions.name": "Sessions",
+  "config.title": "KirinAI Insight",
+  "config.claudeProjectsPath.description": "Path to Claude Code projects directory (e.g. ~/.claude/projects). Leave empty for auto-detect.",
+  "config.cloudUrl.description": "KirinAI Cloud backend URL for uploading feedback and session data.",
+  "config.autoSync.enabled.description": "Automatically sync imported sessions when their source files change.",
+  "config.autoSync.intervalMs.description": "Interval in milliseconds between auto-sync checks (default: 30000 = 30s)."
+}

@@ -79,3 +79,8 @@ scripts/test-claude-import.ts
 
 # local IDE/plugin config
 .superpowers/
+
+# VSCode extension
+vscode-extension/node_modules/
+*.vsix
+vscode-extension/test-*.html
