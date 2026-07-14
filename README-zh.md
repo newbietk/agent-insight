@@ -68,7 +68,30 @@ npm run dev
 2. 将 `.env.example` 复制为 `.env`（默认已指向 `http://localhost:21026`）
 3. 点击任意 Session 的 **上传** 按钮（云朵图标），打开反馈表单
 
-## 方式一：Web UI
+## 方式一：VSCode 插件
+
+无需离开编辑器即可分析 Session。VSCode 插件将 6 个分析 Tab 集成到侧边栏面板中。
+
+**需要 VSCode >= 1.92.0**
+
+### 安装
+
+从 [Releases](https://github.com/newbietk/agent-insight/releases) 下载最新的 `.vsix` 文件：
+
+- `Ctrl+Shift+P` → **Extensions: Install from VSIX...** → 选择文件
+- 或从 [VSCode Marketplace](https://marketplace.visualstudio.com/) 安装（即将上线）
+
+### 快速开始
+
+1. 点击活动栏的 **图表图标**（📊）
+2. 点击 **云下载图标** → **自动检测** `~/.claude/projects`（或选择 `.jsonl` 文件）
+3. 点击任意 Session 打开 6 个分析 Tab 的详细面板
+
+**6 个分析 Tab：** Overview（Token 趋势）· Turns（上下文组成）· Skills（技能事件）· File Reads（文件读取）· Subagents（子代理）· Breakdown（Token 拆解）
+
+详细用法、配置、打包和开发指南请参见 [vscode-extension/README-zh.md](vscode-extension/README-zh.md)（[English](vscode-extension/README.md)）。
+
+## 方式二：Web UI
 
 **需要 Node.js >= 22.5**（内置 `node:sqlite` 模块需要此版本）。如果有 nvm，`start.sh` 会自动切换到 Node 22 LTS。
 
@@ -86,7 +109,7 @@ npm run dev
 
 Web UI 还支持：导出 session 为独立 SQLite 或层级 Markdown；上传 session 到 KirinAI Cloud（带结构化反馈表单）。
 
-## 方式二：CLI 上传 + Web 分析
+## 方式三：CLI 上传 + Web 分析
 
 适用于 SSH 远程服务器、Web IDE 等无浏览器环境。CLI 一步完成导入和上传，之后在 Web UI 上分析。
 

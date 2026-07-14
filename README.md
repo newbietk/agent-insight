@@ -68,7 +68,30 @@ If you want to submit a session with structured feedback to the cloud platform:
 2. Copy `.env.example` to `.env` (defaults point to `http://localhost:21026`)
 3. Click the **Upload** button (cloud icon) on any session to open the feedback form
 
-## Option 1: Web UI
+## Option 1: VSCode Extension
+
+Analyze sessions without leaving your editor. The VSCode extension brings 6 tabs of analysis into a sidebar panel.
+
+**Requires VSCode >= 1.92.0**
+
+### Install
+
+Download the latest `.vsix` from [Releases](https://github.com/newbietk/agent-insight/releases), then:
+
+- `Ctrl+Shift+P` → **Extensions: Install from VSIX...** → select the file
+- Or install from [VSCode Marketplace](https://marketplace.visualstudio.com/) (coming soon)
+
+### Quick Start
+
+1. Click the **graph icon** (📊) in the activity bar
+2. Click **cloud-download** → **Auto-detect** `~/.claude/projects` (or pick a `.jsonl` file)
+3. Click any session to open the 6-tab analysis panel
+
+**6 Analysis Tabs:** Overview (token trends) · Turns (context composition) · Skills · File Reads · Subagents · Breakdown
+
+See [vscode-extension/README.md](vscode-extension/README.md) ([中文](vscode-extension/README-zh.md)) for detailed usage, configuration, packaging, and development guide.
+
+## Option 2: Web UI
 
 **Requires Node.js >= 22.5** (for built-in `node:sqlite` module). If you have nvm, `start.sh` auto-switches to Node 22 LTS.
 
@@ -86,7 +109,7 @@ Open `http://localhost:21025`. After importing a log file, click a session to ex
 
 Web UI also supports: exporting sessions to standalone SQLite or hierarchical Markdown; uploading sessions to KirinAI Cloud with structured feedback.
 
-## Option 2: CLI Upload + Web Analysis
+## Option 3: CLI Upload + Web Analysis
 
 Designed for SSH remote servers, Web IDEs, and other environments without a browser. CLI imports and uploads in one step, then analyze in Web UI.
 
