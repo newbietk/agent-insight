@@ -1,4 +1,5 @@
 import { Storage, SessionDetailData } from '../storage/db';
+import FormData from 'form-data';
 
 const VERSION = '0.1.0';
 
@@ -19,10 +20,10 @@ export interface UploadResult {
 /**
  * Export session data to an in-memory SQLite .db blob (portable format).
  */
-function exportSessionBlob(data: SessionDetailData): Uint8Array {
-  // Use sql.js to create a minimal export database
+async function exportSessionBlob(data: SessionDetailData): Promise<Uint8Array> {
+  // sql.js v1.x returns a Promise from initSqlJs(), must await
   const initSql = require('sql.js');
-  const SQL = initSql();
+  const SQL = await initSql();
   const db = new SQL.Database();
 
   db.run(`
@@ -66,7 +67,7 @@ function exportSessionBlob(data: SessionDetailData): Uint8Array {
   );
 
   const insertTurn = db.prepare(
-    `INSERT INTO turn VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`
+    `INSERT INTO turn VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`
   );
   for (const t of data.turns) {
     insertTurn.run([
@@ -104,12 +105,12 @@ export async function uploadFeedback(
   // 2. Export session to SQLite blob
   let sessionBlob: Uint8Array;
   try {
-    sessionBlob = exportSessionBlob(data);
+    sessionBlob = await exportSessionBlob(data);
   } catch (err) {
     return { success: false, error: `Export failed: ${err instanceof Error ? err.message : String(err)}` };
   }
 
-  // 3. Build multipart FormData
+  // 3. Build multipart form data (form-data npm pkg, not Web API)
   const s = data.session;
   const formData = new FormData();
   formData.append('taskId', s.taskId);
@@ -124,27 +125,36 @@ export async function uploadFeedback(
   formData.append('turnCount', String(s.totalLlmCallCount ?? data.turns.length));
   formData.append('kirinaiVersion', VERSION);
 
-  // Append session .db blob
-  const blob = new Blob([sessionBlob], { type: 'application/octet-stream' });
-  formData.append('sessionData', blob, `${s.taskId.replace(/[^a-zA-Z0-9_-]/g, '_')}.db`);
+  // Append session .db as file buffer
+  const safeName = s.taskId.replace(/[^a-zA-Z0-9_-]/g, '_');
+  formData.append('sessionData', Buffer.from(sessionBlob), {
+    filename: `${safeName}.db`,
+    contentType: 'application/octet-stream',
+  });
 
   // 4. POST to cloud
+  const url = cloudUrl.replace(/\/+$/, '') + '/api/submissions';
   try {
-    const url = cloudUrl.replace(/\/+$/, '') + '/api/submissions';
     const res = await fetch(url, {
       method: 'POST',
-      body: formData,
+      body: formData.getBuffer(),
+      headers: formData.getHeaders(),
     });
 
     if (!res.ok) {
       const text = await res.text().catch(() => '');
-      return { success: false, error: `Server returned ${res.status}: ${text.substring(0, 200)}` };
+      return { success: false, error: `${url} returned ${res.status}: ${text.substring(0, 200)}` };
     }
 
-    const json = await res.json() as UploadResult;
-    return json;
+    const json = await res.json() as Record<string, unknown>;
+    // Cloud returns { id, status } — map to UploadResult format
+    return {
+      success: true,
+      submissionId: (json.id as string) || (json.submissionId as string),
+      status: json.status as string | undefined,
+    };
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
-    return { success: false, error: `Network error: ${msg}` };
+    return { success: false, error: `${url}: ${msg}` };
   }
 }

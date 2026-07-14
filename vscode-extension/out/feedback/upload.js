@@ -1,14 +1,18 @@
 "use strict";
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.uploadFeedback = uploadFeedback;
+const form_data_1 = __importDefault(require("form-data"));
 const VERSION = '0.1.0';
 /**
  * Export session data to an in-memory SQLite .db blob (portable format).
  */
-function exportSessionBlob(data) {
-    // Use sql.js to create a minimal export database
+async function exportSessionBlob(data) {
+    // sql.js v1.x returns a Promise from initSqlJs(), must await
     const initSql = require('sql.js');
-    const SQL = initSql();
+    const SQL = await initSql();
     const db = new SQL.Database();
     db.run(`
     CREATE TABLE IF NOT EXISTS session (
@@ -44,7 +48,7 @@ function exportSessionBlob(data) {
         s.totalSkillLoadCount, s.totalSubagentCount,
         s.sourcePath, s.createdAt,
     ]);
-    const insertTurn = db.prepare(`INSERT INTO turn VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`);
+    const insertTurn = db.prepare(`INSERT INTO turn VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`);
     for (const t of data.turns) {
         insertTurn.run([
             t.id, t.turnIndex, t.role,
@@ -73,14 +77,14 @@ async function uploadFeedback(storage, sessionId, form, cloudUrl) {
     // 2. Export session to SQLite blob
     let sessionBlob;
     try {
-        sessionBlob = exportSessionBlob(data);
+        sessionBlob = await exportSessionBlob(data);
     }
     catch (err) {
         return { success: false, error: `Export failed: ${err instanceof Error ? err.message : String(err)}` };
     }
-    // 3. Build multipart FormData
+    // 3. Build multipart form data (form-data npm pkg, not Web API)
     const s = data.session;
-    const formData = new FormData();
+    const formData = new form_data_1.default();
     formData.append('taskId', s.taskId);
     formData.append('issueType', form.issueType);
     formData.append('problemDescription', form.problemDescription);
@@ -93,26 +97,35 @@ async function uploadFeedback(storage, sessionId, form, cloudUrl) {
     formData.append('totalCost', String(s.totalCost ?? 0));
     formData.append('turnCount', String(s.totalLlmCallCount ?? data.turns.length));
     formData.append('kirinaiVersion', VERSION);
-    // Append session .db blob
-    const blob = new Blob([sessionBlob], { type: 'application/octet-stream' });
-    formData.append('sessionData', blob, `${s.taskId.replace(/[^a-zA-Z0-9_-]/g, '_')}.db`);
+    // Append session .db as file buffer
+    const safeName = s.taskId.replace(/[^a-zA-Z0-9_-]/g, '_');
+    formData.append('sessionData', Buffer.from(sessionBlob), {
+        filename: `${safeName}.db`,
+        contentType: 'application/octet-stream',
+    });
     // 4. POST to cloud
+    const url = cloudUrl.replace(/\/+$/, '') + '/api/submissions';
     try {
-        const url = cloudUrl.replace(/\/+$/, '') + '/api/submissions';
         const res = await fetch(url, {
             method: 'POST',
-            body: formData,
+            body: formData.getBuffer(),
+            headers: formData.getHeaders(),
         });
         if (!res.ok) {
             const text = await res.text().catch(() => '');
-            return { success: false, error: `Server returned ${res.status}: ${text.substring(0, 200)}` };
+            return { success: false, error: `${url} returned ${res.status}: ${text.substring(0, 200)}` };
         }
         const json = await res.json();
-        return json;
+        // Cloud returns { id, status } — map to UploadResult format
+        return {
+            success: true,
+            submissionId: json.id || json.submissionId,
+            status: json.status,
+        };
     }
     catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
-        return { success: false, error: `Network error: ${msg}` };
+        return { success: false, error: `${url}: ${msg}` };
     }
 }
 //# sourceMappingURL=upload.js.map
