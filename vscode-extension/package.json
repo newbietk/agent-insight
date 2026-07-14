@@ -1,0 +1,152 @@
+{
+  "name": "kirinai-insight",
+  "displayName": "%displayName%",
+  "description": "%description%",
+  "version": "0.2.0",
+  "publisher": "kirinai",
+  "engines": {
+    "vscode": "^1.92.0"
+  },
+  "categories": [
+    "Other",
+    "Visualization"
+  ],
+  "activationEvents": [
+    "onCommand:kirinai.import",
+    "onCommand:kirinai.refreshSessions",
+    "onCommand:kirinai.openSession",
+    "onCommand:kirinai.deleteSession",
+    "onCommand:kirinai.syncSession",
+    "onCommand:kirinai.syncAll",
+    "onView:kirinai.sessions"
+  ],
+  "main": "./out/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "kirinai.import",
+        "title": "%command.import.title%",
+        "icon": "$(cloud-download)"
+      },
+      {
+        "command": "kirinai.refreshSessions",
+        "title": "%command.refreshSessions.title%",
+        "icon": "$(refresh)"
+      },
+      {
+        "command": "kirinai.openSession",
+        "title": "%command.openSession.title%",
+        "icon": "$(eye)"
+      },
+      {
+        "command": "kirinai.deleteSession",
+        "title": "%command.deleteSession.title%",
+        "icon": "$(trash)"
+      },
+      {
+        "command": "kirinai.syncSession",
+        "title": "%command.syncSession.title%",
+        "icon": "$(sync)"
+      },
+      {
+        "command": "kirinai.syncAll",
+        "title": "%command.syncAll.title%",
+        "icon": "$(sync~spin)"
+      }
+    ],
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "kirinai",
+          "title": "%viewContainer.title%",
+          "icon": "$(graph)"
+        }
+      ]
+    },
+    "views": {
+      "kirinai": [
+        {
+          "id": "kirinai.sessions",
+          "name": "%view.sessions.name%"
+        }
+      ]
+    },
+    "menus": {
+      "view/title": [
+        {
+          "command": "kirinai.import",
+          "when": "view == kirinai.sessions",
+          "group": "navigation"
+        },
+        {
+          "command": "kirinai.refreshSessions",
+          "when": "view == kirinai.sessions",
+          "group": "navigation"
+        },
+        {
+          "command": "kirinai.syncAll",
+          "when": "view == kirinai.sessions",
+          "group": "navigation"
+        }
+      ],
+      "view/item/context": [
+        {
+          "command": "kirinai.openSession",
+          "when": "view == kirinai.sessions",
+          "group": "inline"
+        },
+        {
+          "command": "kirinai.syncSession",
+          "when": "view == kirinai.sessions",
+          "group": "inline"
+        },
+        {
+          "command": "kirinai.deleteSession",
+          "when": "view == kirinai.sessions"
+        }
+      ]
+    },
+    "configuration": {
+      "title": "%config.title%",
+      "properties": {
+        "kirinai.claudeProjectsPath": {
+          "type": "string",
+          "default": "",
+          "description": "%config.claudeProjectsPath.description%"
+        },
+        "kirinai.cloudUrl": {
+          "type": "string",
+          "default": "http://localhost:21026",
+          "description": "%config.cloudUrl.description%"
+        },
+        "kirinai.autoSync.enabled": {
+          "type": "boolean",
+          "default": false,
+          "description": "%config.autoSync.enabled.description%"
+        },
+        "kirinai.autoSync.intervalMs": {
+          "type": "number",
+          "default": 30000,
+          "description": "%config.autoSync.intervalMs.description%"
+        }
+      }
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run compile && npm run copy-assets",
+    "compile": "tsc -p ./",
+    "copy-assets": "node -e \"const fs=require('fs');const p='src/media';fs.readdirSync(p).filter(f=>/\\.(png|svg)$/.test(f)).forEach(f=>{const d='out/media';if(!fs.existsSync(d))fs.mkdirSync(d,{recursive:true});fs.copyFileSync(p+'/'+f,d+'/'+f);console.log('Copied '+f)});\"",
+    "watch": "tsc -watch -p ./",
+    "lint": "eslint src --ext ts"
+  },
+  "devDependencies": {
+    "@types/node": "^22",
+    "@types/sql.js": "^1.4.11",
+    "@types/vscode": "^1.92.0",
+    "@vscode/vsce": "^3.9.2",
+    "typescript": "^5.7.0"
+  },
+  "dependencies": {
+    "sql.js": "^1.14.1"
+  }
+}

@@ -31,7 +31,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import { UploadIcon, LoaderIcon, CheckIcon, XIcon, TrashIcon, DownloadIcon, CheckCircleIcon } from 'lucide-react';
+import { UploadIcon, LoaderIcon, CheckIcon, XIcon, TrashIcon, DownloadIcon, CheckCircleIcon, RefreshCwIcon } from 'lucide-react';
 import { toast } from 'sonner';
 
 interface SessionListItem {
@@ -61,6 +61,7 @@ interface SessionListProps {
 
 type UploadStatus = 'idle' | 'uploading' | 'done' | 'error';
 type ExportStatus = 'idle' | 'exporting' | 'done' | 'error';
+type SyncStatus = 'idle' | 'syncing' | 'done' | 'error';
 
 function formatTokens(n: number): string {
   if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
@@ -108,6 +109,7 @@ export function SessionList({ items, total, page, pageSize }: SessionListProps) 
 
   const [uploadStatus, setUploadStatus] = useState<Record<string, UploadStatus>>({})
   const [exportStatus, setExportStatus] = useState<Record<string, ExportStatus>>({})
+  const [syncStatus, setSyncStatus] = useState<Record<string, SyncStatus>>({})
   const [uploadError, setUploadError] = useState<string | null>(null)
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null)
   const [uploadDialogItem, setUploadDialogItem] = useState<SessionListItem | null>(null)
@@ -242,6 +244,33 @@ export function SessionList({ items, total, page, pageSize }: SessionListProps) 
     } catch {
       setExportStatus(prev => ({ ...prev, [key]: 'error' }))
       toast.error('Export failed', { description: 'Network error' })
+    }
+  }
+
+  async function handleSync(item: SessionListItem) {
+    const key = item.sessionId
+    setSyncStatus(prev => ({ ...prev, [key]: 'syncing' }))
+    try {
+      const res = await fetch('/api/ingest/refresh-session', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ taskId: item.taskId, framework: item.framework ?? 'unknown' }),
+      })
+      if (!res.ok) {
+        setSyncStatus(prev => ({ ...prev, [key]: 'error' }))
+        return
+      }
+      setSyncStatus(prev => ({ ...prev, [key]: 'done' }))
+      const data = await res.json()
+      toast.success('Sync complete', {
+        description: data.message ?? 'Session refreshed',
+        icon: <CheckCircleIcon className="size-4" />,
+      })
+      // Reload after brief delay so user sees the checkmark
+      setTimeout(() => window.location.reload(), 800)
+    } catch {
+      setSyncStatus(prev => ({ ...prev, [key]: 'error' }))
+      toast.error('Sync failed', { description: 'Network error' })
     }
   }
 
@@ -432,6 +461,7 @@ export function SessionList({ items, total, page, pageSize }: SessionListProps) 
             {items.map((item) => {
               const uStatus = uploadStatus[item.sessionId] ?? 'idle'
               const eStatus = exportStatus[item.sessionId] ?? 'idle'
+              const sStatus = syncStatus[item.sessionId] ?? 'idle'
               return (
                 <TableRow key={item.sessionId} className={selectedIds.has(item.sessionId) ? 'bg-blue-500/10' : selectedIds.size >= 2 ? 'opacity-50' : ''}>
                   <TableCell className="w-8 px-2">
@@ -491,6 +521,21 @@ export function SessionList({ items, total, page, pageSize }: SessionListProps) 
                         {eStatus === 'done' && <CheckCircleIcon className="size-3.5 text-green-600" />}
                         {eStatus === 'error' && <XIcon className="size-3.5 text-red-500" />}
                       </Button>
+                      {item.sourcePath && (
+                        <Button
+                          variant="outline"
+                          size="icon"
+                          className="size-6"
+                          onClick={() => handleSync(item)}
+                          disabled={sStatus === 'syncing'}
+                          title="Sync from source"
+                        >
+                          {sStatus === 'idle' && <RefreshCwIcon className="size-3.5" />}
+                          {sStatus === 'syncing' && <LoaderIcon className="size-3.5 animate-spin" />}
+                          {sStatus === 'done' && <CheckCircleIcon className="size-3.5 text-green-600" />}
+                          {sStatus === 'error' && <XIcon className="size-3.5 text-red-500" />}
+                        </Button>
+                      )}
                       <Button
                         variant="outline"
                         size="icon"

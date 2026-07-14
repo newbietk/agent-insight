@@ -349,6 +349,10 @@ export default function SessionDetailPage({
   const [exporting, setExporting] = useState(false)
   const [exportingMd, setExportingMd] = useState(false)
   const [refreshing, setRefreshing] = useState(false)
+  const [autoRefresh, setAutoRefresh] = useState(false)
+  const [lastRefreshTime, setLastRefreshTime] = useState<string | null>(null)
+
+  const autoRefreshRef = useRef(false)
 
   async function handleExport() {
     if (exporting) return
@@ -606,6 +610,40 @@ export default function SessionDetailPage({
   useEffect(() => {
     loadAllData()
   }, [taskId])
+
+  // ── Auto-refresh ──────────────────────────────────────────
+  useEffect(() => {
+    if (!autoRefresh || !session?.sourcePath) return
+
+    const intervalMs = 30_000
+    const timer = setInterval(async () => {
+      // Prevent overlapping calls
+      if (autoRefreshRef.current) return
+      autoRefreshRef.current = true
+      try {
+        const fwParam = framework ? `&framework=${encodeURIComponent(framework)}` : ''
+        const res = await fetch('/api/ingest/refresh-session', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ taskId, framework }),
+        })
+        if (res.ok) {
+          const data = await res.json()
+          setLastRefreshTime(new Date().toLocaleTimeString())
+          // Only reload data if there were actual changes
+          if (data.message && !data.message.includes('up to date')) {
+            loadAllData()
+          }
+        }
+      } catch {
+        // Silent — auto-refresh errors shouldn't interrupt the user
+      } finally {
+        autoRefreshRef.current = false
+      }
+    }, intervalMs)
+
+    return () => clearInterval(timer)
+  }, [autoRefresh, session?.sourcePath, taskId, framework])
 
   useEffect(() => {
     if (!selectedTurnId) {
@@ -1615,6 +1653,21 @@ export default function SessionDetailPage({
             <RefreshCwIcon className={`size-4 ${refreshing ? "animate-spin" : ""}`} />
             {refreshing ? "刷新中..." : "刷新"}
           </Button>
+          {session?.sourcePath && (
+            <Button
+              variant={autoRefresh ? 'default' : 'outline'}
+              size="sm"
+              className="gap-1"
+              onClick={() => setAutoRefresh(!autoRefresh)}
+              title={autoRefresh ? 'Auto-refresh every 30s — click to stop' : 'Auto-refresh every 30s'}
+            >
+              <RefreshCwIcon className={`size-4 ${autoRefresh ? 'animate-spin' : ''}`} />
+              {autoRefresh ? 'Auto' : 'Auto'}
+            </Button>
+          )}
+          {lastRefreshTime && (
+            <span className="text-xs text-muted-foreground">Last: {lastRefreshTime}</span>
+          )}
           <Button
             variant="outline"
             size="sm"
