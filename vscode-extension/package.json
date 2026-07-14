@@ -4,6 +4,10 @@
   "description": "%description%",
   "version": "0.2.0",
   "publisher": "kirinai",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/newbietk/agent-insight"
+  },
   "engines": {
     "vscode": "^1.92.0"
   },
