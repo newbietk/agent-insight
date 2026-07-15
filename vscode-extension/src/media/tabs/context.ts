@@ -249,7 +249,8 @@ function renderContextGrowthChart() {
   // Chart dimensions
   var SVG_H = 420;
   var PAD = { top: 36, bottom: 40, left: 60, right: 30 };
-  var plotW = agentStats.length > 1 ? 900 : 600;
+  var containerW = container.getBoundingClientRect().width - 32;
+	  var plotW = Math.max(containerW - PAD.left - PAD.right, agentStats.length > 1 ? 600 : 400);
   var SVG_W = plotW + PAD.left + PAD.right;
   var plotH = SVG_H - PAD.top - PAD.bottom;
   var baseline = SVG_H - PAD.bottom;
@@ -269,7 +270,7 @@ function renderContextGrowthChart() {
   function toY(tokens) { return PAD.top + plotH - (tokens / yMax) * plotH; }
 
   // Build SVG
-  var svg = '<svg width="' + SVG_W + '" height="' + SVG_H + '" viewBox="0 0 ' + SVG_W + ' ' + SVG_H + '" style="display:block">';
+  var svg = '<svg width="100%" height="' + SVG_H + '" viewBox="0 0 ' + SVG_W + ' ' + SVG_H + '" style="display:block;max-width:' + SVG_W + 'px">';
 
   // Background
   svg += '<rect width="' + SVG_W + '" height="' + SVG_H + '" fill="' + (typeof currentTheme !== 'undefined' && currentTheme === 'light' ? '#fafafc' : '#1b1e2b') + '" rx="6"/>';

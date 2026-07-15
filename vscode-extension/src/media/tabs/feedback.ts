@@ -6,7 +6,7 @@ import { t } from '../../i18n';
 export function renderFeedbackTab(): string {
   return `
 <div id="tab-feedback" class="tab-panel">
-  <div style="max-width:600px;margin:0 auto">
+  <div style="max-width:min(800px, 90vw);margin:0 auto">
     <div class="chart-container" style="margin-bottom:16px">
       <div class="chart-title">📬 ${escHtml(t('feedback.title'))}</div>
 

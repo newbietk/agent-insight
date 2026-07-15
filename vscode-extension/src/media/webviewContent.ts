@@ -193,10 +193,10 @@ function __(key) {
 
   .ctx-summary { background: rgba(220, 220, 170, 0.05); border: 1px solid rgba(220, 220, 170, 0.15); border-radius: 6px; padding: 12px 14px; margin-top: 14px; }
   .ctx-summary-title { font-size: 11px; color: var(--yellow); text-transform: uppercase; letter-spacing: 0.4px; margin-bottom: 6px; }
-  .ctx-summary-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 6px; font-size: 12px; }
+  .ctx-summary-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 8px; font-size: 12px; }
   .ctx-summary-item { display: flex; justify-content: space-between; }
-  .ctx-summary-item span:first-child { color: var(--text-dim); }
-  .ctx-summary-item span:last-child { color: var(--text); font-weight: 500; }
+  .ctx-summary-item span:first-child { color: var(--text-dim); flex-shrink: 0; }
+  .ctx-summary-item span:last-child { color: var(--text); font-weight: 500; overflow-wrap: anywhere; word-break: break-word; }
 
   .turn-detail { background: var(--card-bg); border: 1px solid var(--border); border-radius: 8px; padding: 16px; margin-top: 14px; }
   .turn-detail h4 { font-size: 13px; color: var(--text); margin-bottom: 10px; font-weight: 600; }

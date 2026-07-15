@@ -305,8 +305,25 @@ function _readSession(db, sessionId) {
 }
 // ── Helpers ────────────────────────────────────────────────
 function extractMessageContentBulk(messageId, msgData, textByMsg, reasoningByMsg) {
+    // Handle plain string content (Claude Code style)
     if (msgData.content && typeof msgData.content === 'string') {
         return msgData.content;
+    }
+    // Handle structured content blocks array (OpenCode style)
+    // e.g. [{type: "text", text: "..."}, {type: "tool_use", ...}, {type: "reasoning", text: "..."}]
+    if (Array.isArray(msgData.content)) {
+        const parts = [];
+        const contentBlocks = msgData.content;
+        for (const block of contentBlocks) {
+            if (block.type === 'text' && block.text && typeof block.text === 'string') {
+                parts.push(block.text);
+            }
+            else if (block.type === 'reasoning' && block.text && typeof block.text === 'string') {
+                parts.push(`<thinking>${block.text}</thinking>`);
+            }
+        }
+        if (parts.length > 0)
+            return parts.join('\n\n');
     }
     const textContent = textByMsg.get(messageId) ?? [];
     const reasoningContent = reasoningByMsg.get(messageId) ?? [];
