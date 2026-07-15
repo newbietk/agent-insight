@@ -259,6 +259,9 @@ function renderMergedPanel(turnId) {
 
   // ── Render turn detail ──
   renderTurnDetail(turn);
+
+  // ── Show compression detection ──
+  renderCompressionAlert(ctxData);
 }
 
 // ── Context composition stacked bar ──
@@ -296,6 +299,9 @@ function renderContextChart(ctxData) {
 
   // Build segments for the stacked bar
   var barTotal = ctxData.reportedInput > 0 ? ctxData.reportedInput : (ctxData.totalEstimated + ctxData.overhead);
+  var cacheR = toNumber(turn.cacheReadTokens);
+  var cacheW = toNumber(turn.cacheWriteTokens);
+  if (cacheR > 0) barTotal += cacheR; // cache reads are separate from input messages
   html += '<div class="ctx-role-bar">';
   var hasAny = false;
   for (var ri = 0; ri < roleOrder.length; ri++) {
@@ -317,6 +323,24 @@ function renderContextChart(ctxData) {
     html += '<div class="ctx-role-seg ctx-role-seg-overhead" ' +
       'style="width:' + ohPct + '%; background: repeating-linear-gradient(45deg, rgba(180,180,180,0.2), rgba(180,180,180,0.2) 3px, transparent 3px, transparent 6px), rgba(255,255,255,0.04)" ' +
       'title="' + esc(__('turns.overheadTooltip', fmt(ctxData.overhead))) + '"></div>';
+  }
+
+  // Cache read segment (separate from messages)
+  if (cacheR > 0) {
+    hasAny = true;
+    var crPct = barTotal > 0 ? (cacheR / barTotal * 100).toFixed(1) : '0';
+    html += '<div class="ctx-role-seg ctx-role-seg-overhead" ' +
+      'style="width:' + crPct + '%; background: repeating-linear-gradient(-45deg, rgba(220,200,122,0.3), rgba(220,200,122,0.3) 2px, transparent 2px, transparent 4px), rgba(255,255,255,0.02)" ' +
+      'title="Cache Read: ' + fmt(cacheR) + ' tokens (' + crPct + '%)"></div>';
+  }
+
+  // Cache write segment
+  if (cacheW > 0) {
+    hasAny = true;
+    var cwPct = barTotal > 0 ? (cacheW / barTotal * 100).toFixed(1) : '0';
+    html += '<div class="ctx-role-seg ctx-role-seg-overhead" ' +
+      'style="width:' + cwPct + '%; background: repeating-linear-gradient(45deg, rgba(184,152,232,0.3), rgba(184,152,232,0.3) 2px, transparent 2px, transparent 4px), rgba(255,255,255,0.02)" ' +
+      'title="Cache Write: ' + fmt(cacheW) + ' tokens (' + cwPct + '%)"></div>';
   }
   if (!hasAny) {
     html += '<div class="ctx-role-seg" style="flex:1;background:rgba(255,255,255,0.04)" title="' + esc(__('turns.noContextData')) + '"></div>';
@@ -340,6 +364,18 @@ function renderContextChart(ctxData) {
     html += '<div class="ctx-legend-item">' +
       '<span class="ctx-legend-dot" style="background:rgba(180,180,180,0.4);border:1px dashed rgba(255,255,255,0.2)"></span>' +
       __('turns.overhead') + ': ~' + fmt(ctxData.overhead) + ' tk' +
+    '</div>';
+  }
+  if (cacheR > 0) {
+    html += '<div class="ctx-legend-item">' +
+      '<span class="ctx-legend-dot" style="background:var(--yellow);opacity:0.3"></span>' +
+      '📥 Cache Read: ' + fmt(cacheR) + ' tk' +
+    '</div>';
+  }
+  if (cacheW > 0) {
+    html += '<div class="ctx-legend-item">' +
+      '<span class="ctx-legend-dot" style="background:var(--purple);opacity:0.3"></span>' +
+      '📤 Cache Write: ' + fmt(cacheW) + ' tk' +
     '</div>';
   }
   html += '</div>';
@@ -454,57 +490,310 @@ function renderContextMessageList(ctxData) {
   });
 }
 
+// ── Compression detection alert ──
+function renderCompressionAlert(ctxData) {
+  var turn = ctxData.turn;
+  var ctxPct = turn.contextWindowPct != null ? toNumber(turn.contextWindowPct) : 0;
+  if (ctxPct === 0) return;
+
+  // Find previous assistant turn in same scope
+  var scope = turn.subagentSessionId || '__root__';
+  var prevTurn = null;
+  for (var i = 0; i < turns.length; i++) {
+    var t = turns[i];
+    var tScope = t.subagentSessionId || '__root__';
+    if (t.id === turn.id) break;
+    if (t.role === 'assistant' && tScope === scope) {
+      prevTurn = t;
+    }
+  }
+
+  if (!prevTurn || prevTurn.contextWindowPct == null) return;
+  var prevPct = toNumber(prevTurn.contextWindowPct);
+  var drop = prevPct > 0 ? prevPct - ctxPct : 0;
+
+  if (drop > 5) {
+    // Compression detected
+    var panel = document.getElementById('turnDetailPanel');
+    if (!panel) return;
+    var alert = document.createElement('div');
+    alert.style.cssText = 'margin:0 0 12px 0;padding:10px 14px;border:1px solid var(--orange);border-radius:6px;background:rgba(224,154,107,0.08);font-size:12px';
+    alert.innerHTML =
+      '<span style="color:var(--orange);font-weight:600">🔄 Context compressed</span> ' +
+      '<span style="color:var(--text-dim)">from ' + prevPct.toFixed(1) + '% → ' + ctxPct.toFixed(1) + '%</span> ' +
+      '<span style="color:var(--orange)">(-' + drop.toFixed(1) + '%)</span>';
+    panel.insertBefore(alert, panel.firstChild);
+  }
+}
+
 // ── Turn detail (lower section) ──
+
+// Shared storage for copy operations (avoids DOM attr encoding issues)
+var turnDetailContents = {};
+
+function parseContentSections(rawContent) {
+  if (!rawContent) return [];
+  var sections = [];
+  // Extract <thinking>...</thinking> blocks
+  var thinkingRe = /<thinking>([\\s\\S]*?)<\\/thinking>/gi;
+  var remaining = rawContent;
+  var match;
+  var lastIdx = 0;
+  // Use exec loop
+  thinkingRe.lastIndex = 0;
+  while ((match = thinkingRe.exec(rawContent)) !== null) {
+    // Text before this thinking block
+    var before = rawContent.substring(lastIdx, match.index).trim();
+    if (before) sections.push({ type: 'text', content: before });
+    sections.push({ type: 'thinking', content: match[1].trim() });
+    lastIdx = match.index + match[0].length;
+    remaining = rawContent.substring(lastIdx);
+  }
+  // Remaining text after last thinking block
+  var after = remaining.trim();
+  if (after) sections.push({ type: 'text', content: after });
+  // If no thinking blocks found, whole content is text
+  if (sections.length === 0 && rawContent.trim()) {
+    sections.push({ type: 'text', content: rawContent });
+  }
+  return sections;
+}
+
+function renderTurnMetrics(turn) {
+  var html = '<div class="turn-detail-stats">';
+  if (turn.totalTokens > 0) {
+    html += '<div class="td-stat"><span class="td-stat-label">' + __('common.tokens') + '</span><span class="td-stat-val" style="color:var(--blue)">' + fmt(turn.totalTokens) + '</span></div>';
+  }
+  if (turn.inputTokens > 0) {
+    html += '<div class="td-stat"><span class="td-stat-label">' + __('common.input') + '</span><span class="td-stat-val">' + fmt(turn.inputTokens) + '</span></div>';
+  }
+  if (turn.outputTokens > 0) {
+    html += '<div class="td-stat"><span class="td-stat-label">' + __('common.output') + '</span><span class="td-stat-val" style="color:var(--green)">' + fmt(turn.outputTokens) + '</span></div>';
+  }
+  if (turn.reasoningTokens > 0) {
+    html += '<div class="td-stat"><span class="td-stat-label">Reasoning</span><span class="td-stat-val" style="color:var(--purple)">' + fmt(turn.reasoningTokens) + '</span></div>';
+  }
+  var totalCache = toNumber(turn.cacheReadTokens) + toNumber(turn.cacheWriteTokens);
+  if (totalCache > 0) {
+    html += '<div class="td-stat"><span class="td-stat-label">' + __('common.cache') + '</span><span class="td-stat-val" style="color:var(--yellow)">' + fmt(totalCache) + '</span></div>';
+  }
+  if (turn.latencyMs > 0) {
+    html += '<div class="td-stat"><span class="td-stat-label">' + __('common.latency') + '</span><span class="td-stat-val" style="color:var(--orange)">' + fmtMs(turn.latencyMs) + '</span></div>';
+  }
+  html += '</div>';
+  return html;
+}
+
 function renderTurnDetail(turn) {
   var panel = document.getElementById('turnDetailPanel');
   if (!panel) return;
 
   var html = '<div class="turn-detail">';
 
-  // Content
-  if (turn.content) {
-    var contentText = turn.content.length > 8000 ? turn.content.substring(0, 8000) + '\\n\\n... [' + __('turns.truncated') + ']' : turn.content;
+  // ── Metric badges ──
+  html += renderTurnMetrics(turn);
+
+  // ── Content section (User Input / LLM Output) ──
+  var hasContent = turn.content && turn.content.length > 0;
+  if (hasContent) {
+    var contentSections = parseContentSections(turn.content);
+    var contentLabel = turn.role === 'user' ? '👤 User Input'
+      : (turn.role === 'assistant' ? '🤖 LLM Output'
+      : '💬 ' + esc(turn.role));
+    var contentId = 'td-content-' + turn.id;
+
     html += '<div class="turn-detail-section">';
-    html += '<div class="turn-detail-section-title">📝 ' + __('turns.content') + '</div>';
-    html += '<div class="turn-content">' + esc(contentText) + '</div>';
+    html += '<div class="td-section-header" data-expand="' + contentId + '">';
+    html += '<span class="td-section-title">' + contentLabel + '</span>';
+    html += '<span class="td-section-meta">~' + Math.round(turn.content.length / 3.5) + ' est. tk</span>';
+    html += '<span class="td-section-arrow">▶</span>';
+    html += '</div>';
+
+    html += '<div id="' + contentId + '" class="td-section-body" style="display:none">';
+
+    for (var si = 0; si < contentSections.length; si++) {
+      var section = contentSections[si];
+      if (section.type === 'thinking') {
+        var thinkId = 'td-think-' + turn.id + '-' + si;
+        var thinkContentId = 'td-think-content-' + turn.id + '-' + si;
+        var thinkPreview = section.content.length > 500 ? section.content.substring(0, 500) + '...' : section.content;
+        turnDetailContents[thinkContentId] = section.content;
+
+        html += '<div class="td-thinking-block">';
+        html += '<div class="td-section-header td-sub-header" data-expand="' + thinkId + '">';
+        html += '<span class="badge badge-purple">💭 thinking</span>';
+        html += '<span class="td-section-meta">' + thinkPreview.substring(0, 80) + '</span>';
+        html += '<span class="td-section-arrow">▶</span>';
+        html += '<button class="td-copy-btn" data-copy-id="' + thinkContentId + '" title="Copy">📋</button>';
+        html += '</div>';
+        html += '<div id="' + thinkId + '" class="td-section-body" style="display:none">';
+        html += '<pre class="td-content-pre">' + esc(section.content.length > 10000 ? section.content.substring(0, 10000) + '\\n\\n... [' + __('turns.truncated') + ']' : section.content) + '</pre>';
+        html += '</div>';
+        html += '</div>';
+      } else {
+        var textContentId = 'td-text-content-' + turn.id + '-' + si;
+        turnDetailContents[textContentId] = section.content;
+
+        html += '<div class="td-text-block">';
+        html += '<div class="td-text-header">';
+        html += '<span class="badge badge-green">📝 text</span>';
+        html += '<span class="td-section-meta">~' + Math.round(section.content.length / 3.5) + ' est. tk</span>';
+        html += '<button class="td-copy-btn" data-copy-id="' + textContentId + '" title="Copy">📋</button>';
+        html += '</div>';
+        html += '<pre class="td-content-pre">' + esc(section.content.length > 20000 ? section.content.substring(0, 20000) + '\\n\\n... [' + __('turns.truncated') + ']' : section.content) + '</pre>';
+        html += '</div>';
+      }
+    }
+
+    html += '</div>'; // td-section-body
+    html += '</div>'; // turn-detail-section
+  } else if (turn.role === 'user') {
+    // User turn with no text content (unusual but handle gracefully)
+    html += '<div class="turn-detail-section">';
+    html += '<div class="td-section-header" style="cursor:default">';
+    html += '<span class="td-section-title">👤 User Input</span>';
+    html += '<span class="td-section-meta" style="color:var(--text-dim)">(no content)</span>';
+    html += '</div>';
+    html += '</div>';
+  } else if (turn.role === 'assistant') {
+    html += '<div class="turn-detail-section">';
+    html += '<div class="td-section-header" style="cursor:default">';
+    html += '<span class="td-section-title">🤖 LLM Output</span>';
+    html += '<span class="td-section-meta" style="color:var(--text-dim)">(tool-only turn)</span>';
+    html += '</div>';
     html += '</div>';
   }
 
-  // Tool calls
+  // ── Tool Calls section ──
   if (turn.toolCalls && turn.toolCalls.length > 0) {
     html += '<div class="turn-detail-section">';
     html += '<div class="turn-detail-section-title">🔧 ' + __('turnDetail.toolCalls', turn.toolCalls.length) + '</div>';
-    for (var ti = 0; ti < turn.toolCalls.length; ti++) {
-      var tc = turn.toolCalls[ti];
+
+    for (var tci = 0; tci < turn.toolCalls.length; tci++) {
+      var tc = turn.toolCalls[tci];
+      var tcId = 'td-tc-' + turn.id + '-' + tci;
+      var isSkill = tc.isSkillRelated;
       var stateCls = (tc.state === 'ok' || tc.state === 'completed') ? 'tool-state-ok' : 'tool-state-error';
-      html += '<div class="tool-call-item" data-tc-id="' + esc(tc.toolCallId) + '" style="cursor:pointer">' +
-        '<span class="tool-name">' + esc(tc.toolName) + '</span> ' +
-        '<span class="' + stateCls + '">[' + esc(tc.state) + ']</span>' +
-        (tc.durationMs > 0 ? ' <span style="color:var(--text-dim)">' + fmtMs(tc.durationMs) + '</span>' : '') +
-        (tc.errorType ? ' <span style="color:var(--red)">' + esc(tc.errorType) + '</span>' : '') +
-      '</div>';
+
+      // Store content for copy
+      var tcContent = '';
+      if (tc.argsJson) tcContent += '// Args:\\n' + (function() {
+        try { return JSON.stringify(JSON.parse(tc.argsJson), null, 2); } catch(e) { return tc.argsJson; }
+      })() + '\\n';
+      if (tc.resultJson) tcContent += '\\n// Result:\\n' + tc.resultJson;
+      turnDetailContents['td-tc-content-' + turn.id + '-' + tci] = tcContent;
+
+      html += '<div class="tool-call-item tool-call-expandable" style="border-left-color:' + (isSkill ? 'var(--yellow)' : 'var(--accent)') + ';cursor:pointer">';
+      html += '<div class="td-section-header td-tc-header" data-expand="' + tcId + '" style="padding:0;border:none;background:none;margin:0">';
+      html += '<span class="tool-name">' + esc(tc.toolName) + '</span> ';
+      html += '<span class="' + stateCls + '">[' + esc(tc.state) + ']</span>';
+      if (tc.durationMs > 0) html += ' <span style="color:var(--text-dim)">' + fmtMs(tc.durationMs) + '</span>';
+      if (tc.errorType) html += ' <span style="color:var(--red)">' + esc(tc.errorType) + '</span>';
+      if (isSkill) html += ' <span class="badge badge-yellow" style="font-size:10px;margin-left:4px">⚡ skill</span>';
+      html += '<span class="td-section-arrow" style="margin-left:auto">▶</span>';
+      html += '</div>';
+
+      html += '<div id="' + tcId + '" class="td-section-body" style="display:none;margin-top:8px">';
+
+      if (tc.errorType || tc.state === 'error' || tc.state === 'failed') {
+        html += '<div class="td-error-msg">' + esc(tc.errorType || tc.state) + '</div>';
+      }
+
+      if (tc.argsJson) {
+        var argsStr;
+        try { argsStr = JSON.stringify(JSON.parse(tc.argsJson), null, 2); } catch(e) { argsStr = tc.argsJson; }
+        html += '<div style="margin-bottom:8px">';
+        html += '<div style="font-size:10px;font-weight:600;color:var(--text-dim);margin-bottom:2px">📥 Args</div>';
+        html += '<pre class="td-content-pre" style="max-height:200px">' + esc(argsStr.length > 3000 ? argsStr.substring(0, 3000) + '\\n... (truncated)' : argsStr) + '</pre>';
+        html += '</div>';
+      }
+
+      if (tc.resultJson) {
+        var resultStr = tc.resultJson;
+        html += '<div>';
+        html += '<div style="font-size:10px;font-weight:600;color:var(--text-dim);margin-bottom:2px">📤 Result</div>';
+        html += '<pre class="td-content-pre" style="max-height:250px">' + esc(resultStr.length > 5000 ? resultStr.substring(0, 5000) + '\\n... (truncated)' : resultStr) + '</pre>';
+        html += '</div>';
+      }
+
+      if (!tc.argsJson && !tc.resultJson) {
+        html += '<div style="font-size:11px;color:var(--text-dim);font-style:italic">(no detail data)</div>';
+      }
+
+      html += '<button class="td-copy-btn" data-copy-id="td-tc-content-' + turn.id + '-' + tci + '" style="margin-top:6px">📋 Copy all</button>';
+      html += '</div>'; // td-section-body
+      html += '</div>'; // tool-call-item
     }
-    html += '</div>';
+
+    html += '</div>'; // turn-detail-section
   }
 
-  // Skill events
+  // ── Skill Events section ──
   if (turn.skillEvents && turn.skillEvents.length > 0) {
     html += '<div class="turn-detail-section">';
     html += '<div class="turn-detail-section-title">🧩 ' + __('turnDetail.skillEvents', turn.skillEvents.length) + '</div>';
-    for (var si = 0; si < turn.skillEvents.length; si++) {
-      var se = turn.skillEvents[si];
-      html += '<div class="tool-call-item" style="border-left-color:var(--purple);cursor:pointer" data-skill="' + esc(se.skillName) + '">' +
-        esc(se.skillName) + ' [' + se.eventType + '] ' +
-        (se.success ? '✅' : '❌') + ' ' + fmtMs(se.durationMs) +
-      '</div>';
+
+    for (var sei = 0; sei < turn.skillEvents.length; sei++) {
+      var se = turn.skillEvents[sei];
+      var seId = 'td-se-' + turn.id + '-' + sei;
+
+      html += '<div class="tool-call-item" style="border-left-color:var(--purple)">';
+      html += '<div class="td-section-header td-tc-header" data-expand="' + seId + '" style="padding:0;border:none;background:none;margin:0;cursor:pointer">';
+      html += '<span style="color:var(--purple);font-weight:600">' + esc(se.skillName) + '</span> ';
+      html += '<span style="color:var(--text-dim)">[' + esc(se.eventType) + ']</span> ';
+      html += (se.success ? '<span style="color:var(--green)">✅</span>' : '<span style="color:var(--red)">❌</span>') + ' ';
+      if (se.durationMs > 0) html += '<span style="color:var(--text-dim)">' + fmtMs(se.durationMs) + '</span>';
+      html += '<span class="td-section-arrow" style="margin-left:auto">▶</span>';
+      html += '</div>';
+
+      html += '<div id="' + seId + '" class="td-section-body" style="display:none;margin-top:8px">';
+      html += '<div style="display:flex;gap:16px;flex-wrap:wrap;font-size:11px">';
+      html += '<span><span style="color:var(--text-dim)">Event:</span> ' + esc(se.eventType) + '</span>';
+      html += '<span><span style="color:var(--text-dim)">Status:</span> ' + (se.success ? '✅ Success' : '❌ Failed') + '</span>';
+      if (se.skillVersion != null) html += '<span><span style="color:var(--text-dim)">Version:</span> ' + se.skillVersion + '</span>';
+      if (se.durationMs > 0) html += '<span><span style="color:var(--text-dim)">Duration:</span> ' + fmtMs(se.durationMs) + '</span>';
+      html += '</div>';
+      html += '</div>'; // td-section-body
+      html += '</div>'; // tool-call-item
     }
-    html += '</div>';
+
+    html += '</div>'; // turn-detail-section
   }
 
-  html += '</div>';
+  html += '</div>'; // turn-detail
   panel.innerHTML = html;
 
-  // Click on skill event → navigate to Skills
+  // ── Bind expand/collapse handlers ──
+  panel.querySelectorAll('[data-expand]').forEach(function(el) {
+    el.addEventListener('click', function(e) {
+      // Don't trigger if clicking a copy button
+      if (e.target.closest('.td-copy-btn')) return;
+      var targetId = this.getAttribute('data-expand');
+      var body = document.getElementById(targetId);
+      var arrow = this.querySelector('.td-section-arrow');
+      if (body) {
+        var isOpen = body.style.display !== 'none';
+        body.style.display = isOpen ? 'none' : 'block';
+        if (arrow) arrow.textContent = isOpen ? '▶' : '▼';
+      }
+    });
+  });
+
+  // ── Bind copy buttons ──
+  panel.querySelectorAll('.td-copy-btn').forEach(function(btn) {
+    btn.addEventListener('click', function(e) {
+      e.stopPropagation();
+      var copyId = this.getAttribute('data-copy-id');
+      var content = turnDetailContents[copyId] || '';
+      navigator.clipboard.writeText(content).catch(function() {});
+      var origText = this.textContent;
+      this.textContent = '✓';
+      var self = this;
+      setTimeout(function() { self.textContent = origText; }, 1000);
+    });
+  });
+
+  // ── Click on skill event → navigate to Skills tab ──
   panel.querySelectorAll('.tool-call-item[data-skill]').forEach(function(item) {
     item.addEventListener('click', function() {
       var sk = this.getAttribute('data-skill');

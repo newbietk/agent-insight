@@ -1,4 +1,4 @@
-# KirinAI Insight - VSCode Extension
+# CANNBot Insight - VSCode Extension
 
 Session-level observability tool for LLM coding agents, integrated into VSCode. Import Claude Code JSONL sessions and analyze token usage, context growth, skill events, subagents, and more — without leaving your editor.
 
@@ -35,11 +35,11 @@ Session-level observability tool for LLM coding agents, integrated into VSCode. 
 
 1. Download the latest `.vsix` file from [Releases](https://github.com/newbietk/agent-insight/releases)
 2. In VSCode: `Ctrl+Shift+P` → **Extensions: Install from VSIX...** → select the file
-3. Click the **graph icon** (📊) in the activity bar to open the KirinAI panel
+3. Click the **graph icon** (📊) in the activity bar to open the CANNBot Insight panel
 
 ### Import Sessions
 
-1. In the KirinAI sidebar, click the **cloud-download** icon (📥)
+1. In the CANNBot Insight sidebar, click the **cloud-download** icon (📥)
 2. Choose an import method:
    - **Auto-detect** `~/.claude/projects` (recommended) — scans your Claude Code project directories
    - **Import a .jsonl file** — pick a single session file
@@ -61,12 +61,12 @@ Each session row supports:
 
 ### Configuration
 
-Open VSCode Settings (`Ctrl+,`) → search "KirinAI":
+Open VSCode Settings (`Ctrl+,`) → search "CANNBot Insight":
 
 | Setting | Default | Description |
 |---------|---------|-------------|
 | `kirinai.claudeProjectsPath` | `""` | Custom path to Claude Code projects directory (empty = auto-detect `~/.claude/projects/`) |
-| `kirinai.cloudUrl` | `http://localhost:21026` | KirinAI Cloud server URL for upload/sync |
+| `kirinai.cloudUrl` | `http://localhost:21026` | CANNBot Cloud server URL for upload/sync |
 | `kirinai.autoSync.enabled` | `false` | Enable automatic background sync of sessions |
 | `kirinai.autoSync.intervalMs` | `30000` | Sync interval in milliseconds (min 10000) |
 
@@ -135,7 +135,7 @@ npm run watch
 # Debug
 # 1. Open the vscode-extension/ folder in VSCode
 # 2. Press F5 → launches Extension Development Host
-# 3. The KirinAI sidebar icon appears in the activity bar
+# 3. The CANNBot Insight sidebar icon appears in the activity bar
 ```
 
 ### Project Structure
@@ -186,8 +186,8 @@ Controlled by `.vscodeignore` (or `files` in `package.json`). Current packaging 
 
 | Project | Description |
 |---------|-------------|
-| [KirinAI-Insight](https://github.com/newbietk/agent-insight) | Web app (Next.js) — full-featured session analysis with 6 tabs, CLI import tool, and cloud upload |
-| [KirinAI-Cloud](https://github.com/newbietk/KirinAI-Cloud) | Cloud platform for session feedback and sharing |
+| [CANNBot-Insight](https://github.com/newbietk/agent-insight) | Web app (Next.js) — full-featured session analysis with 6 tabs, CLI import tool, and cloud upload |
+| [CANNBot-Cloud](https://github.com/newbietk/CANNBot-Cloud) | Cloud platform for session feedback and sharing |
 
 ## License
 

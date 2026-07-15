@@ -1,5 +1,5 @@
 /**
- * English translations for KirinAI Insight.
+ * English translations for CANNBot Insight.
  */
 declare const en: Record<string, string>;
 export default en;

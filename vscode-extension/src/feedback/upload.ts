@@ -1,5 +1,4 @@
 import { Storage, SessionDetailData } from '../storage/db';
-import FormData from 'form-data';
 
 const VERSION = '0.1.0';
 
@@ -110,7 +109,7 @@ export async function uploadFeedback(
     return { success: false, error: `Export failed: ${err instanceof Error ? err.message : String(err)}` };
   }
 
-  // 3. Build multipart form data (form-data npm pkg, not Web API)
+  // 3. Build multipart form data (Web API FormData, available in Node.js 20+/VS Code 1.92+)
   const s = data.session;
   const formData = new FormData();
   formData.append('taskId', s.taskId);
@@ -125,20 +124,17 @@ export async function uploadFeedback(
   formData.append('turnCount', String(s.totalLlmCallCount ?? data.turns.length));
   formData.append('kirinaiVersion', VERSION);
 
-  // Append session .db as file buffer
+  // Append session .db as Blob (Node.js 20+ built-in)
   const safeName = s.taskId.replace(/[^a-zA-Z0-9_-]/g, '_');
-  formData.append('sessionData', Buffer.from(sessionBlob), {
-    filename: `${safeName}.db`,
-    contentType: 'application/octet-stream',
-  });
+  const blob = new Blob([sessionBlob], { type: 'application/octet-stream' });
+  formData.append('sessionData', blob, `${safeName}.db`);
 
-  // 4. POST to cloud
+  // 4. POST to cloud — fetch auto-sets Content-Type for FormData body
   const url = cloudUrl.replace(/\/+$/, '') + '/api/submissions';
   try {
     const res = await fetch(url, {
       method: 'POST',
-      body: formData.getBuffer(),
-      headers: formData.getHeaders(),
+      body: formData,
     });
 
     if (!res.ok) {

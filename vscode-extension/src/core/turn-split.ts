@@ -93,7 +93,8 @@ export function resetIdCounter(): void {
 }
 
 function truncateTo200(text: string | null): string | null {
-  if (!text) return null;
+  if (text === null || text === undefined) return null;
+  if (text.length === 0) return null;
   if (text.length <= 200) return text;
   return text.substring(0, 200);
 }
@@ -200,7 +201,13 @@ export function splitIntoTurns(
     const role = interaction.role === 'subagent' ? 'assistant' : interaction.role;
 
     const content = interaction.content;
-    const contentSummary = truncateTo200(content);
+    let contentSummary = truncateTo200(content);
+    // Generate fallback summary from tool calls when content is null/empty
+    if (!contentSummary && interaction.tool_calls && interaction.tool_calls.length > 0) {
+      const toolNames = interaction.tool_calls.slice(0, 3).map(function(tc: { toolName: string }) { return tc.toolName; });
+      const more = interaction.tool_calls.length > 3 ? ' +' + (interaction.tool_calls.length - 3) + ' more' : '';
+      contentSummary = toolNames.join(', ') + more;
+    }
 
     const usage = interaction.usage;
     const totalTokens = usage?.total ?? 0;

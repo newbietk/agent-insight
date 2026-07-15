@@ -1,5 +1,5 @@
 /**
- * Chinese (Simplified) translations — default language for KirinAI Insight.
+ * Chinese (Simplified) translations — default language for CANNBot Insight.
  */
 declare const zhCN: Record<string, string>;
 export default zhCN;

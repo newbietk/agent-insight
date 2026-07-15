@@ -1,5 +1,5 @@
 /**
- * Internationalization module for KirinAI Insight.
+ * Internationalization module for CANNBot Insight.
  *
  * Detects VSCode locale and provides a `t(key, ...args)` function for string
  * lookup with positional interpolation.

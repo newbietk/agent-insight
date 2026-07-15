@@ -1,43 +1,28 @@
 import type { SessionDetailData } from '../storage/db';
 import { getContextWindowLimit } from '../core/context-window-config';
 import { t, getBundle } from '../i18n';
-import * as fs from 'node:fs';
-import * as path from 'node:path';
 import { sharedRuntimeJS, escHtml, safeJson } from './shared';
 import { themeRuntimeJS } from './theme';
 import { navRuntimeJS } from './nav';
 import { renderOverviewTab, renderOverviewJS } from './tabs/overview';
 import { renderTurnsTab, renderTurnsJS } from './tabs/turns';
-import { renderBreakdownTab, renderBreakdownJS } from './tabs/breakdown';
 import { renderSkillsTab, renderSkillsJS } from './tabs/skills';
-import { renderFileReadsTab, renderFileReadsJS } from './tabs/filereads';
-import { renderSubagentsTab, renderSubagentsJS } from './tabs/subagents';
-
-// ── Load bot avatar as base64 (embedded once at module load) ──
-let _botDataUri: string | null = null;
-function getBotDataUri(): string {
-  if (_botDataUri) return _botDataUri;
-  try {
-    const imgPath = path.join(__dirname, '..', 'media', 'bot.png');
-    if (fs.existsSync(imgPath)) {
-      const buf = fs.readFileSync(imgPath);
-      const b64 = buf.toString('base64');
-      _botDataUri = `data:image/png;base64,${b64}`;
-      return _botDataUri;
-    }
-  } catch { /* fall through */ }
-  _botDataUri = '';
-  return '';
-}
+import { renderFileOpsTab, renderFileOpsJS } from './tabs/fileops';
+import { renderTraceTab, renderTraceJS } from './tabs/trace';
+import { renderContextTab, renderContextJS } from './tabs/context';
+import { renderAuditTab, renderAuditJS } from './tabs/audit';
+import { renderFeedbackTab, renderFeedbackJS } from './tabs/feedback';
 
 // ── Tab definitions (8 tabs, order matches parent project priority) ──
 const TAB_DEFS: Array<{ key: string; label: string; icon: string }> = [
-  { key: 'overview',  label: 'Overview',   icon: '📊' },
-  { key: 'turns',     label: 'Turns',      icon: '💬' },
-  { key: 'skills',    label: 'Skills',     icon: '🧩' },
-  { key: 'filereads', label: 'File Reads', icon: '📁' },
-  { key: 'subagents', label: 'Subagents',  icon: '🤖' },
-  { key: 'breakdown', label: 'Breakdown',  icon: '📉' },
+  { key: 'overview',  label: t('detail.tabOverview'),   icon: '📊' },
+  { key: 'turns',     label: t('detail.tabTurns'),      icon: '💬' },
+  { key: 'trace',     label: t('detail.tabTrace'),      icon: '🔗' },
+  { key: 'context',   label: t('detail.tabContext'),    icon: '📈' },
+  { key: 'audit',     label: t('detail.tabAudit'),      icon: '📋' },
+  { key: 'skills',    label: t('detail.tabSkills'),     icon: '🧩' },
+  { key: 'fileops',   label: t('detail.tabFileOps'),    icon: '📁' },
+  { key: 'feedback',  label: t('detail.tabFeedback'),   icon: '📬' },
 ];
 
 export function getWebviewContent(
@@ -48,17 +33,13 @@ export function getWebviewContent(
   sessionId: string
 ): string {
   const { session, turns } = data;
-  const botUri = getBotDataUri();
   const ctxLimit = getContextWindowLimit(session.model);
   const i18nBundle = getBundle();
 
   const assistantTurns = turns.filter(t => t.role === 'assistant');
-  const mainTurns = turns.filter(t => !t.isSubagent);
-
   const turnsJson = safeJson(turns);
   const astJson = safeJson(assistantTurns);
   const sessionJson = safeJson(session);
-  const cloudUrlJson = safeJson(cloudUrl);
   const i18nJson = safeJson(i18nBundle);
 
   // Generate tab buttons
@@ -170,6 +151,10 @@ function __(key) {
   .chart-tooltip-title { font-weight: 600; color: var(--accent); margin-bottom: 2px; }
   .chart-tooltip-tokens { color: var(--text-dim); }
   .chart-tooltip-summary { color: var(--text); margin-top: 4px; }
+
+  /* Clickable chart data dots */
+  .ctx-chart-dot { transition: opacity 0.15s ease; }
+  .ctx-chart-dot:hover { opacity: 0.7; filter: brightness(1.5); }
 
   .table-wrap { background: var(--card-bg); border: 1px solid var(--border); border-radius: 8px; overflow: hidden; margin-bottom: 20px; }
   .table-header { font-size: 12px; font-weight: 600; padding: 12px 16px; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.4px; border-bottom: 1px solid var(--border); }
@@ -349,78 +334,111 @@ function __(key) {
     font-size: 11px; font-weight: 600; color: var(--text-dim);
     text-transform: uppercase; letter-spacing: 0.4px; margin-bottom: 8px;
   }
+
+  /* ── Expandable section headers (turn detail content / tool calls / skill events) ── */
+  .td-section-header {
+    display: flex; align-items: center; gap: 8px; padding: 8px 12px;
+    cursor: pointer; user-select: none; border-radius: 4px;
+    transition: background 0.1s; font-size: 12px;
+  }
+  .td-section-header:hover { background: rgba(255,255,255,0.04); }
+  .td-section-title { font-weight: 600; color: var(--text); }
+  .td-section-meta { font-size: 10px; color: var(--text-dim); }
+  .td-section-arrow { font-size: 9px; color: var(--text-dim); flex-shrink: 0; margin-left: auto; transition: transform 0.15s; }
+  .td-section-body { padding: 8px 12px; }
+
+  .td-sub-header { padding: 6px 10px; font-size: 11px; background: rgba(255,255,255,0.015); border-radius: 3px; }
+
+  /* ── Thinking / text content blocks ── */
+  .td-thinking-block {
+    border-left: 3px solid var(--purple); border-radius: 0 4px 4px 0;
+    margin-bottom: 8px; background: rgba(160,120,240,0.04);
+  }
+  .td-text-block {
+    border-left: 3px solid var(--green); border-radius: 0 4px 4px 0;
+    margin-bottom: 8px; background: rgba(80,200,140,0.04);
+  }
+  .td-text-header {
+    display: flex; align-items: center; gap: 8px; padding: 6px 10px;
+    font-size: 11px;
+  }
+
+  /* ── Badges ── */
+  .badge {
+    display: inline-block; font-size: 10px; font-weight: 600;
+    padding: 2px 8px; border-radius: 4px; letter-spacing: 0.3px;
+  }
+  .badge-purple { background: rgba(160,120,240,0.15); color: var(--purple); }
+  .badge-green { background: rgba(80,200,140,0.15); color: var(--green); }
+  .badge-yellow { background: rgba(220,200,80,0.15); color: var(--yellow); }
+  .badge-red { background: rgba(232,103,107,0.15); color: var(--red); }
+  .badge-blue { background: rgba(98,154,240,0.15); color: var(--blue); }
+
+  /* ── Copy button ── */
+  .td-copy-btn {
+    background: rgba(255,255,255,0.05); border: 1px solid var(--border);
+    color: var(--text-dim); font-size: 11px; padding: 3px 8px;
+    border-radius: 4px; cursor: pointer; transition: background 0.1s, color 0.1s;
+  }
+  .td-copy-btn:hover { background: rgba(255,255,255,0.1); color: var(--text); }
+
+  /* ── Tool call header (compact) ── */
+  .td-tc-header { padding: 6px 10px; font-size: 11px; }
+
+  /* ── Error message ── */
+  .td-error-msg {
+    background: rgba(232,103,107,0.1); color: var(--red);
+    border: 1px solid rgba(232,103,107,0.2); border-radius: 4px;
+    padding: 6px 10px; font-size: 11px; margin-bottom: 10px;
+  }
+
+  /* ── Content pre block ── */
+  .td-content-pre {
+    margin: 0; padding: 10px 12px; font-size: 11px; line-height: 1.5;
+    color: var(--text); white-space: pre-wrap; word-break: break-word;
+    max-height: 400px; overflow-y: auto; background: rgba(255,255,255,0.015);
+    border-radius: 4px; border: 1px solid rgba(62,62,66,0.3);
+  }
+
+  /* ── Skills tab: summary table ── */
+  .skill-summary-row { transition: background 0.1s; }
+  .skill-summary-row:hover { background: rgba(255,255,255,0.03); }
+  .skill-detail-row td { border-top: 1px solid rgba(62,62,66,0.15); }
+  .skill-events-detail { display: flex; flex-direction: column; gap: 4px; }
+  .skill-event-item {
+    display: flex; align-items: center; gap: 6px; flex-wrap: wrap;
+    padding: 4px 8px; border-radius: 4px; font-size: 11px;
+    border: 1px solid rgba(62,62,66,0.2);
+  }
+  .skill-event-ok { background: rgba(80,200,140,0.04); }
+  .skill-event-fail { background: rgba(232,103,107,0.05); border-color: rgba(232,103,107,0.2); }
+  .skill-event-turn {
+    color: var(--accent); cursor: pointer; font-weight: 500;
+    text-decoration: underline; text-underline-offset: 2px;
+  }
+  .skill-event-turn:hover { color: var(--blue); }
+
+  /* ── Skills tab: per-agent cards ── */
+  .skill-agent-card {
+    background: var(--card-bg); border: 1px solid var(--border);
+    border-radius: 6px; overflow: hidden;
+  }
+  .skill-agent-header { transition: background 0.1s; }
+  .skill-agent-header:hover { background: rgba(255,255,255,0.03); }
+
+  /* ── Skills tab: failed items ── */
+  .skill-failed-item {
+    padding: 8px 12px; border-bottom: 1px solid rgba(62,62,66,0.15);
+    background: rgba(232,103,107,0.03);
+  }
+  .skill-failed-item:last-child { border-bottom: none; }
+
   .ctx-expand-arrow { font-size: 9px; color: var(--text-dim); flex-shrink: 0; }
 
   .empty-state { text-align: center; padding: 40px; color: var(--text-dim); }
   .empty-state .icon { font-size: 32px; margin-bottom: 8px; }
 
-  /* ── Feedback Bot ── */
-  .feedback-fab {
-    position: fixed; z-index: 100;
-    top: calc(50% - 30px); right: -30px;
-    width: 60px; height: 60px; border-radius: 50%;
-    border: 3px solid var(--border);
-    cursor: grab; user-select: none;
-    background: var(--card-bg) center/cover no-repeat;
-    box-shadow: 0 0 0 4px var(--theme-bar-bg), 0 4px 20px rgba(0,0,0,0.35);
-    transition: right 0.35s cubic-bezier(0.4, 0, 0.2, 1),
-                box-shadow 0.25s, border-color 0.25s;
-  }
-  .feedback-fab:hover {
-    right: 6px;
-    border-color: var(--accent);
-    box-shadow: 0 0 0 4px var(--theme-bar-bg), 0 6px 28px rgba(0,0,0,0.45);
-  }
-  .feedback-fab.dragging { cursor: grabbing; border-color: var(--accent); transition: none; }
-  .feedback-fab.docked { right: -30px; }
-  .feedback-fab.docked:hover { right: 6px; }
-  .feedback-fab.hidden { display: none; }
-
-  .feedback-overlay {
-    position: fixed; inset: 0; z-index: 200;
-    background: rgba(0,0,0,0.4); display: none;
-    transition: opacity 0.25s;
-  }
-  .feedback-overlay.open { display: block; }
-
-  .feedback-drawer {
-    position: fixed; top: 0; right: -400px; z-index: 201;
-    width: 380px; height: 100vh;
-    background: var(--bg); border-left: 1px solid var(--border);
-    display: flex; flex-direction: column;
-    transition: right 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-    box-shadow: -4px 0 20px rgba(0,0,0,0.25);
-  }
-  .feedback-drawer.open { right: 0; }
-
-  .drawer-header {
-    display: flex; align-items: center; justify-content: space-between;
-    padding: 14px 16px; border-bottom: 1px solid var(--border);
-  }
-  .drawer-header h3 { font-size: 15px; font-weight: 600; color: var(--text); }
-  .drawer-close {
-    background: none; border: none; color: var(--text-dim); cursor: pointer;
-    font-size: 20px; padding: 2px 6px; line-height: 1;
-  }
-  .drawer-close:hover { color: var(--text); }
-
-  .drawer-body { flex: 1; overflow-y: auto; padding: 16px; }
-  .drawer-body label {
-    display: block; font-size: 11px; font-weight: 600; color: var(--text-dim);
-    text-transform: uppercase; letter-spacing: 0.4px; margin: 14px 0 6px 0;
-  }
-  .drawer-body label:first-child { margin-top: 0; }
-  .drawer-body select, .drawer-body textarea, .drawer-body input[type=email] {
-    width: 100%; padding: 8px 10px; border: 1px solid var(--border);
-    border-radius: 5px; background: var(--card-bg); color: var(--text);
-    font-size: 12px; font-family: inherit;
-    transition: border-color 0.15s;
-  }
-  .drawer-body select:focus, .drawer-body textarea:focus, .drawer-body input:focus {
-    outline: none; border-color: var(--accent);
-  }
-  .drawer-body textarea { resize: vertical; min-height: 80px; }
-
+  /* ── Session meta ── */
   .session-meta {
     font-size: 11px; color: var(--text-dim); background: var(--card-bg);
     border: 1px solid var(--border); border-radius: 5px; padding: 10px 12px;
@@ -428,20 +446,7 @@ function __(key) {
   }
   .session-meta span { color: var(--text); font-weight: 500; }
 
-  .drawer-footer {
-    padding: 14px 16px; border-top: 1px solid var(--border);
-    display: flex; gap: 8px;
-  }
-  .drawer-footer button {
-    flex: 1; padding: 8px; border-radius: 5px; border: none; cursor: pointer;
-    font-size: 12px; font-weight: 600; font-family: inherit;
-    transition: opacity 0.15s;
-  }
-  .drawer-footer button:disabled { opacity: 0.5; cursor: not-allowed; }
-  .btn-submit { background: var(--accent); color: #fff; }
-  .btn-submit:hover:not(:disabled) { opacity: 0.9; }
-  .btn-cancel { background: var(--card-bg); color: var(--text-dim); border: 1px solid var(--border) !important; }
-
+  /* ── Feedback toast ── */
   .feedback-toast {
     position: fixed; top: 16px; right: 16px; z-index: 300;
     padding: 10px 16px; border-radius: 6px; font-size: 12px;
@@ -451,6 +456,135 @@ function __(key) {
   .feedback-toast.show { transform: translateX(0); }
   .feedback-toast.success { background: #1a3a2a; color: #5ec49e; border: 1px solid #2a5a3a; }
   .feedback-toast.error { background: #3a1a1a; color: #e8676b; border: 1px solid #5a2a2a; }
+
+  /* ── File Operations Audit Tab ── */
+  .fileops-layout {
+    display: flex; gap: 0; height: calc(100vh - 240px); min-height: 400px;
+    border: 1px solid var(--border); border-radius: 8px; overflow: hidden;
+    background: var(--card-bg);
+  }
+  .fileops-timeline {
+    width: 320px; min-width: 240px; overflow-y: auto; flex-shrink: 0;
+    border-right: 1px solid var(--border);
+  }
+  .fileops-detail { flex: 1; overflow-y: auto; min-width: 0; }
+
+  .fileops-filter-bar { display: flex; gap: 6px; padding: 8px 0; flex-wrap: wrap; }
+  .fileops-chip {
+    display: inline-flex; align-items: center; gap: 4px;
+    padding: 2px 10px; border-radius: 12px;
+    font-size: 11px; cursor: pointer; user-select: none;
+    border: 1px solid var(--border); color: var(--text-dim);
+    background: transparent; transition: background 0.15s, color 0.15s, border-color 0.15s;
+  }
+  .fileops-chip:hover { background: rgba(255,255,255,0.05); color: var(--text); }
+  .fileops-chip.active {
+    background: var(--accent); color: #fff; border-color: var(--accent);
+  }
+
+  .fileops-turn-item {
+    padding: 10px 12px; border-bottom: 1px solid rgba(62,62,66,0.3);
+    cursor: pointer; transition: background 0.1s;
+  }
+  .fileops-turn-item:hover { background: rgba(255,255,255,0.04); }
+  .fileops-turn-item.selected {
+    background: rgba(0, 122, 204, 0.12); border-left: 3px solid var(--accent);
+    padding-left: 9px;
+  }
+  .fileops-turn-top { display: flex; align-items: center; gap: 6px; margin-bottom: 4px; }
+  .fileops-turn-index { font-size: 11px; font-weight: 700; font-family: monospace; color: var(--text); }
+  .fileops-subagent-badge {
+    font-size: 10px; padding: 1px 6px; border-radius: 3px;
+    background: rgba(224,154,107,0.15); color: var(--orange); font-weight: 500;
+  }
+  .fileops-turn-files { font-size: 10px; color: var(--text-dim); margin-left: auto; }
+  .fileops-turn-ops { display: flex; gap: 6px; font-size: 11px; margin-bottom: 4px; }
+  .fileops-turn-chips { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 6px; }
+  .fileops-file-chip {
+    font-size: 10px; padding: 2px 6px; border-radius: 4px;
+    background: rgba(255,255,255,0.04); color: var(--text-dim);
+    max-width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .fileops-file-item-hidden { display: none !important; }
+
+  .fileops-detail-inner { padding: 16px; }
+  .fileops-detail-header { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 12px; }
+  .fileops-detail-turn { font-size: 14px; font-weight: 700; font-family: monospace; color: var(--text); }
+  .fileops-detail-summary {
+    font-size: 11px; color: var(--text-dim); font-style: italic;
+    margin-bottom: 16px; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .fileops-nav-btn {
+    margin-left: auto; font-size: 11px; padding: 3px 10px; border-radius: 4px;
+    cursor: pointer; border: 1px solid var(--border); background: transparent;
+    color: var(--text-dim); font-family: inherit;
+    transition: background 0.15s, color 0.15s;
+  }
+  .fileops-nav-btn:hover { background: rgba(255,255,255,0.06); color: var(--text); }
+
+  .fileops-file-group {
+    border: 1px solid var(--border); border-radius: 6px; overflow: hidden; margin-bottom: 12px;
+  }
+  .fileops-file-group-header {
+    display: flex; align-items: center; gap: 8px; padding: 8px 12px;
+    background: rgba(255,255,255,0.02); border-bottom: 1px solid var(--border);
+  }
+  .fileops-file-name { font-size: 12px; font-weight: 600; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .fileops-file-path { font-size: 10px; color: var(--text-dim); flex-shrink: 0; }
+
+  .fileops-op-item { padding: 10px 12px; border-bottom: 1px solid rgba(62,62,66,0.15); }
+  .fileops-op-item:last-child { border-bottom: none; }
+  .fileops-op-header { display: flex; align-items: center; gap: 6px; margin-bottom: 8px; }
+  .fileops-op-type { font-size: 12px; font-weight: 600; }
+  .fileops-op-range { font-size: 10px; color: var(--text-dim); font-family: monospace; }
+  .fileops-op-duration { font-size: 10px; color: var(--text-dim); }
+
+  .fileops-op-badge {
+    font-size: 10px; padding: 1px 6px; border-radius: 3px; font-weight: 500;
+  }
+  .fileops-op-badge.ok { background: rgba(94,196,158,0.12); color: var(--green); }
+  .fileops-op-badge.error { background: rgba(232,103,107,0.12); color: var(--red); }
+
+  /* Diff grid */
+  .fileops-diff-container { border: 1px solid var(--border); border-radius: 4px; overflow: hidden; }
+  .fileops-diff-grid { display: grid; grid-template-columns: 1fr 1fr; font-size: 11px; }
+  .fileops-diff-header-old, .fileops-diff-header-new {
+    padding: 4px 10px; font-weight: 600; border-bottom: 1px solid var(--border);
+  }
+  .fileops-diff-header-old { border-right: 1px solid var(--border); }
+  .fileops-diff-cell {
+    padding: 1px 10px; font-family: monospace; font-size: 11px; line-height: 1.5;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .fileops-diff-cell.old { border-right: 1px solid var(--border); }
+
+  /* Code block */
+  .fileops-code-block {
+    font-size: 11px; font-family: monospace; line-height: 1.5;
+    background: rgba(255,255,255,0.015); border: 1px solid var(--border);
+    border-radius: 4px; overflow-y: auto; margin: 0;
+  }
+  .fileops-code-line { display: flex; min-height: 18px; }
+  .fileops-code-ln {
+    width: 36px; text-align: right; color: var(--text-dim);
+    padding-right: 10px; user-select: none; flex-shrink: 0;
+    font-size: 10px;
+  }
+  .fileops-code-text { flex: 1; white-space: pre-wrap; word-break: break-word; }
+
+  .fileops-expand-btn {
+    font-size: 10px; padding: 1px 8px; border-radius: 4px; cursor: pointer;
+    border: 1px solid var(--border); background: transparent;
+    color: var(--text-dim); font-family: inherit;
+    transition: background 0.15s, color 0.15s;
+  }
+  .fileops-expand-btn:hover { background: rgba(255,255,255,0.06); color: var(--text); }
+  .fileops-copy-btn {
+    font-size: 12px; padding: 1px 6px; border-radius: 4px; cursor: pointer;
+    border: 1px solid transparent; background: transparent; color: var(--text-dim);
+    transition: background 0.15s, color 0.15s;
+  }
+  .fileops-copy-btn:hover { background: rgba(255,255,255,0.06); color: var(--text); }
 </style>
 </head>
 <body>
@@ -470,45 +604,12 @@ function __(key) {
 
 ${renderOverviewTab()}
 ${renderTurnsTab()}
+${renderTraceTab()}
+${renderContextTab()}
+${renderAuditTab()}
 ${renderSkillsTab()}
-${renderFileReadsTab()}
-${renderSubagentsTab()}
-${renderBreakdownTab()}
-
-<!-- ── Feedback FAB ── -->
-<button class="feedback-fab" id="feedbackFab" title="${escHtml(t('feedback.dragHint'))}" style="background-image:url(${botUri || ''})"></button>
-
-<!-- ── Feedback Overlay ── -->
-<div class="feedback-overlay" id="feedbackOverlay"></div>
-
-<!-- ── Feedback Drawer ── -->
-<div class="feedback-drawer" id="feedbackDrawer">
-  <div class="drawer-header">
-    <h3>${escHtml(t('feedback.title'))}</h3>
-    <button class="drawer-close" id="drawerClose">✕</button>
-  </div>
-  <div class="drawer-body">
-    <label>${escHtml(t('feedback.issueType'))}</label>
-    <select id="fbIssueType">
-      <option value="context_explosion">${escHtml(t('feedback.issueContextExplosion'))}</option>
-      <option value="duplicate_reads">${escHtml(t('feedback.issueDuplicateReads'))}</option>
-      <option value="cost_spike">${escHtml(t('feedback.issueCostSpike'))}</option>
-      <option value="hallucination">${escHtml(t('feedback.issueHallucination'))}</option>
-      <option value="other">${escHtml(t('feedback.issueOther'))}</option>
-    </select>
-    <label>${escHtml(t('feedback.problemDesc'))}</label>
-    <textarea id="fbProblem" placeholder="${escHtml(t('feedback.problemPlaceholder'))}"></textarea>
-    <label>${escHtml(t('feedback.helpRequest'))}</label>
-    <textarea id="fbHelp" placeholder="${escHtml(t('feedback.helpPlaceholder'))}"></textarea>
-    <label>${escHtml(t('feedback.contactEmail'))}</label>
-    <input type="email" id="fbEmail" placeholder="${escHtml(t('feedback.emailPlaceholder'))}">
-    <div class="session-meta" id="fbSessionMeta"></div>
-  </div>
-  <div class="drawer-footer">
-    <button class="btn-cancel" id="drawerCancel">${escHtml(t('common.cancel'))}</button>
-    <button class="btn-submit" id="drawerSubmit">${escHtml(t('feedback.submit'))}</button>
-  </div>
-</div>
+${renderFileOpsTab()}
+${renderFeedbackTab()}
 
 <!-- ── Toast ── -->
 <div class="feedback-toast" id="feedbackToast"></div>
@@ -541,10 +642,12 @@ function switchTab(name) {
   // Redraw charts when switching to their tabs
   setTimeout(function() {
     if (name === 'overview') drawTokenTrendChart();
-    if (name === 'breakdown') { renderBreakdown(); drawTokenCompositionChart(); }
+    if (name === 'trace') initTraceTab();
+    if (name === 'context') initContextTab();
+    if (name === 'audit') initAuditTab();
     if (name === 'skills') renderSkills();
-    if (name === 'filereads') renderFileReads();
-    if (name === 'subagents') renderSubagents();
+    if (name === 'fileops') renderFileOps();
+    if (name === 'feedback') initFeedbackTab();
     if (name === 'turns') renderTurnCards(null);
   }, 10);
 }
@@ -562,10 +665,12 @@ function initTabs() {
 // ── Tab-specific JS functions ──
 ${renderOverviewJS()}
 ${renderTurnsJS()}
+${renderTraceJS()}
+${renderContextJS()}
+${renderAuditJS()}
 ${renderSkillsJS()}
-${renderFileReadsJS()}
-${renderSubagentsJS()}
-${renderBreakdownJS()}
+${renderFileOpsJS()}
+${renderFeedbackJS()}
 
 // ── Initialize All ──
 function initAll() {
@@ -575,7 +680,6 @@ function initAll() {
   renderOverviewCards();
   renderTurnCards(null);
   drawTokenTrendChart();
-  renderBreakdown();
 }
 
 if (document.readyState === 'loading') {
@@ -584,138 +688,6 @@ if (document.readyState === 'loading') {
   initAll();
 }
 
-// ── Feedback Drawer ──
-(function() {
-  var cloudUrl = ${cloudUrlJson};
-  var sessionId = '${sessionId}';
-
-  var fab = document.getElementById('feedbackFab');
-  var overlay = document.getElementById('feedbackOverlay');
-  var drawer = document.getElementById('feedbackDrawer');
-  var closeBtn = document.getElementById('drawerClose');
-  var cancelBtn = document.getElementById('drawerCancel');
-  var submitBtn = document.getElementById('drawerSubmit');
-  var toast = document.getElementById('feedbackToast');
-
-  var meta = document.getElementById('fbSessionMeta');
-  if (meta) {
-    meta.innerHTML = [
-      __('feedback.task') + ': <span>' + esc(session.taskId.substring(0, 40)) + '</span>',
-      __('common.model') + ': <span>' + esc(session.model || 'unknown') + '</span>',
-      __('common.tokens') + ': <span>' + fmt(toNumber(session.totalTokens)) + '</span>',
-      __('common.cost') + ': <span>' + fmtCost(session.totalCost) + '</span>',
-      __('common.turns') + ': <span>' + turns.length + '</span>',
-      __('feedback.uploadTo') + ': <span>' + esc(cloudUrl) + '</span>'
-    ].join(' · ');
-  }
-
-  function openDrawer() {
-    fab.classList.add('hidden');
-    overlay.classList.add('open');
-    drawer.classList.add('open');
-  }
-  function closeDrawer() {
-    fab.classList.remove('hidden');
-    overlay.classList.remove('open');
-    drawer.classList.remove('open');
-  }
-
-  // Drag logic
-  (function() {
-    var startX = 0, startY = 0, origRight = 0, origTop = 0;
-    var dragging = false, moved = false;
-    var DRAG_THRESHOLD = 4;
-
-    function getRight() {
-      return window.innerWidth - fab.offsetLeft - fab.offsetWidth;
-    }
-
-    fab.addEventListener('mousedown', function(e) {
-      e.preventDefault();
-      startX = e.clientX; startY = e.clientY;
-      origRight = getRight(); origTop = fab.offsetTop;
-      dragging = true; moved = false;
-      fab.classList.add('dragging');
-      fab.style.right = 'auto';
-      fab.style.left = fab.offsetLeft + 'px';
-    });
-
-    document.addEventListener('mousemove', function(e) {
-      if (!dragging) return;
-      var dx = e.clientX - startX, dy = e.clientY - startY;
-      if (Math.abs(dx) > DRAG_THRESHOLD || Math.abs(dy) > DRAG_THRESHOLD) moved = true;
-      if (moved) {
-        var newLeft = window.innerWidth - origRight - 60 + dx;
-        var newTop = origTop + dy;
-        fab.style.left = Math.max(0, Math.min(window.innerWidth - 60, newLeft)) + 'px';
-        fab.style.top = Math.max(0, Math.min(window.innerHeight - 60, newTop)) + 'px';
-      }
-    });
-
-    document.addEventListener('mouseup', function() {
-      if (!dragging) return;
-      fab.classList.remove('dragging');
-      dragging = false;
-      if (!moved) {
-        fab.style.right = '-30px';
-        fab.style.left = 'auto';
-        fab.style.top = '';
-        openDrawer();
-      }
-    });
-  })();
-
-  overlay.addEventListener('click', closeDrawer);
-  closeBtn.addEventListener('click', closeDrawer);
-  cancelBtn.addEventListener('click', closeDrawer);
-
-  function showToast(msg, isError) {
-    toast.textContent = msg;
-    toast.className = 'feedback-toast ' + (isError ? 'error' : 'success') + ' show';
-    setTimeout(function() { toast.classList.remove('show'); }, 4000);
-  }
-
-  submitBtn.addEventListener('click', function() {
-    var issueType = document.getElementById('fbIssueType').value;
-    var problemDescription = document.getElementById('fbProblem').value.trim();
-    var helpRequest = document.getElementById('fbHelp').value.trim();
-    var contactEmail = document.getElementById('fbEmail').value.trim();
-
-    if (!problemDescription) {
-      showToast(__('feedback.pleaseDescribe'), true);
-      return;
-    }
-
-    submitBtn.disabled = true;
-    submitBtn.textContent = __('feedback.uploading');
-
-    vscode.postMessage({
-      type: 'submitFeedback',
-      issueType: issueType,
-      problemDescription: problemDescription,
-      helpRequest: helpRequest,
-      contactEmail: contactEmail
-    });
-  });
-
-  window.addEventListener('message', function(e) {
-    var msg = e.data;
-    if (msg && msg.type === 'feedbackResult') {
-      submitBtn.disabled = false;
-      submitBtn.textContent = __('feedback.submit');
-      if (msg.success) {
-        showToast(__('feedback.uploaded', msg.submissionId || 'N/A'), false);
-        closeDrawer();
-        document.getElementById('fbProblem').value = '';
-        document.getElementById('fbHelp').value = '';
-      } else {
-        showToast(__('feedback.uploadFailed', msg.error || 'Unknown error'), true);
-      }
-    }
-  });
-
-  var vscode = acquireVsCodeApi();
-})();
 </script>
 </body>
 </html>`;

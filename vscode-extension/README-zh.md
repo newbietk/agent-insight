@@ -1,4 +1,4 @@
-# KirinAI Insight - VSCode 插件
+# CANNBot Insight - VSCode 插件
 
 LLM 编码 Agent 的 Session 级可观测工具，集成到 VSCode 中。导入 Claude Code JSONL Session，在编辑器内直接分析 Token 用量、上下文增长、Skill 事件、Subagent 等。
 
@@ -35,11 +35,11 @@ LLM 编码 Agent 的 Session 级可观测工具，集成到 VSCode 中。导入 
 
 1. 从 [Releases](https://github.com/newbietk/agent-insight/releases) 下载最新 `.vsix` 文件
 2. 在 VSCode 中：`Ctrl+Shift+P` → **Extensions: Install from VSIX...** → 选择文件
-3. 点击活动栏的 **图表图标**（📊）打开 KirinAI 面板
+3. 点击活动栏的 **图表图标**（📊）打开 CANNBot Insight 面板
 
 ### 导入 Session
 
-1. 在 KirinAI 侧边栏中，点击 **云下载图标**（📥）
+1. 在 CANNBot Insight 侧边栏中，点击 **云下载图标**（📥）
 2. 选择导入方式：
    - **自动检测** `~/.claude/projects`（推荐）— 扫描 Claude Code 项目目录
    - **导入 .jsonl 文件** — 选择单个 Session 文件
@@ -61,12 +61,12 @@ LLM 编码 Agent 的 Session 级可观测工具，集成到 VSCode 中。导入 
 
 ### 配置项
 
-打开 VSCode 设置（`Ctrl+,`）→ 搜索 "KirinAI"：
+打开 VSCode 设置（`Ctrl+,`）→ 搜索 "CANNBot Insight"：
 
 | 设置项 | 默认值 | 说明 |
 |---------|---------|------|
 | `kirinai.claudeProjectsPath` | `""` | 自定义 Claude Code 项目目录路径（留空 = 自动检测 `~/.claude/projects/`） |
-| `kirinai.cloudUrl` | `http://localhost:21026` | KirinAI Cloud 服务地址，用于上传/同步 |
+| `kirinai.cloudUrl` | `http://localhost:21026` | CANNBot Cloud 服务地址，用于上传/同步 |
 | `kirinai.autoSync.enabled` | `false` | 启用后台自动同步 Session |
 | `kirinai.autoSync.intervalMs` | `30000` | 同步间隔（毫秒，最小 10000） |
 
@@ -135,7 +135,7 @@ npm run watch
 # 调试
 # 1. 在 VSCode 中打开 vscode-extension/ 文件夹
 # 2. 按 F5 → 启动 Extension Development Host
-# 3. KirinAI 侧边栏图标出现在活动栏中
+# 3. CANNBot Insight 侧边栏图标出现在活动栏中
 ```
 
 ### 项目结构
@@ -186,8 +186,8 @@ vscode-extension/
 
 | 项目 | 说明 |
 |---------|-------------|
-| [KirinAI-Insight](https://github.com/newbietk/agent-insight) | Web 应用（Next.js）— 完整功能的 Session 分析，含 CLI 导入工具和云端上传 |
-| [KirinAI-Cloud](https://github.com/newbietk/KirinAI-Cloud) | 云端平台，用于 Session 反馈与分享 |
+| [CANNBot-Insight](https://github.com/newbietk/agent-insight) | Web 应用（Next.js）— 完整功能的 Session 分析，含 CLI 导入工具和云端上传 |
+| [CANNBot-Cloud](https://github.com/newbietk/CANNBot-Cloud) | 云端平台，用于 Session 反馈与分享 |
 
 ## 开源协议
 

@@ -1,10 +1,6 @@
 "use strict";
-var __importDefault = (this && this.__importDefault) || function (mod) {
-    return (mod && mod.__esModule) ? mod : { "default": mod };
-};
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.uploadFeedback = uploadFeedback;
-const form_data_1 = __importDefault(require("form-data"));
 const VERSION = '0.1.0';
 /**
  * Export session data to an in-memory SQLite .db blob (portable format).
@@ -82,9 +78,9 @@ async function uploadFeedback(storage, sessionId, form, cloudUrl) {
     catch (err) {
         return { success: false, error: `Export failed: ${err instanceof Error ? err.message : String(err)}` };
     }
-    // 3. Build multipart form data (form-data npm pkg, not Web API)
+    // 3. Build multipart form data (Web API FormData, available in Node.js 20+/VS Code 1.92+)
     const s = data.session;
-    const formData = new form_data_1.default();
+    const formData = new FormData();
     formData.append('taskId', s.taskId);
     formData.append('issueType', form.issueType);
     formData.append('problemDescription', form.problemDescription);
@@ -97,19 +93,16 @@ async function uploadFeedback(storage, sessionId, form, cloudUrl) {
     formData.append('totalCost', String(s.totalCost ?? 0));
     formData.append('turnCount', String(s.totalLlmCallCount ?? data.turns.length));
     formData.append('kirinaiVersion', VERSION);
-    // Append session .db as file buffer
+    // Append session .db as Blob (Node.js 20+ built-in)
     const safeName = s.taskId.replace(/[^a-zA-Z0-9_-]/g, '_');
-    formData.append('sessionData', Buffer.from(sessionBlob), {
-        filename: `${safeName}.db`,
-        contentType: 'application/octet-stream',
-    });
-    // 4. POST to cloud
+    const blob = new Blob([sessionBlob], { type: 'application/octet-stream' });
+    formData.append('sessionData', blob, `${safeName}.db`);
+    // 4. POST to cloud — fetch auto-sets Content-Type for FormData body
     const url = cloudUrl.replace(/\/+$/, '') + '/api/submissions';
     try {
         const res = await fetch(url, {
             method: 'POST',
-            body: formData.getBuffer(),
-            headers: formData.getHeaders(),
+            body: formData,
         });
         if (!res.ok) {
             const text = await res.text().catch(() => '');

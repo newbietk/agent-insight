@@ -314,7 +314,7 @@ ${sessions.length === 0 ? this._emptyHtml(nonce) : this._cardsHtml(sessions)}
     }
     _errorHtml(msg) {
         return `<html><body style="font-family:var(--vscode-font-family);color:var(--vscode-foreground);padding:16px;">
-  <p style="color:var(--vscode-errorForeground);font-weight:600;">KirinAI Insight failed to start</p>
+  <p style="color:var(--vscode-errorForeground);font-weight:600;">CANNBot Insight failed to start</p>
   <p style="color:var(--vscode-descriptionForeground);font-size:12px;margin-top:8px;">${esc(msg)}</p>
 </body></html>`;
     }
