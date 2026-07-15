@@ -32,8 +32,9 @@ export class CompatStmt {
     return { changes };
   }
 
-  all(param?: unknown): Array<Record<string, unknown>> {
-    if (param !== undefined) this.stmt.bind([param] as any[]);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  all(...params: any[]): Array<Record<string, unknown>> {
+    if (params.length > 0) this.stmt.bind(params);
     const rows: Array<Record<string, unknown>> = [];
     while (this.stmt.step()) {
       const obj = this.stmt.getAsObject();

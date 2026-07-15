@@ -9,7 +9,7 @@ export declare class CompatStmt {
     run(...params: any[]): {
         changes: number;
     };
-    all(param?: unknown): Array<Record<string, unknown>>;
+    all(...params: any[]): Array<Record<string, unknown>>;
     get(...params: any[]): Record<string, unknown> | undefined;
 }
 export declare class CompatDB {

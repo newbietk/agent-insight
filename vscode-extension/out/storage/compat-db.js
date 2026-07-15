@@ -63,9 +63,10 @@ class CompatStmt {
         this.stmt.free();
         return { changes };
     }
-    all(param) {
-        if (param !== undefined)
-            this.stmt.bind([param]);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    all(...params) {
+        if (params.length > 0)
+            this.stmt.bind(params);
         const rows = [];
         while (this.stmt.step()) {
             const obj = this.stmt.getAsObject();
