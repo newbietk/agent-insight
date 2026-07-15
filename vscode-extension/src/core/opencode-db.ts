@@ -29,49 +29,46 @@ export async function listSessions(dbPath: string): Promise<SessionListItem[]> {
       countBySession.set(c.session_id, c.cnt);
     }
 
-    // Get first user message per session for query text
-    const userMsgs = db.prepare(
-      `SELECT session_id, id, data FROM message WHERE session_id IN (${sessionIds.map(() => '?').join(',')}) AND json_extract(data, '$.role') = 'user' ORDER BY time_created`
+    // Load all messages for these sessions, filter by role in JS (avoid sql.js json_extract compat)
+    const allMsgs = db.prepare(
+      `SELECT session_id, id, data FROM message WHERE session_id IN (${sessionIds.map(() => '?').join(',')}) ORDER BY time_created`
     ).all(...sessionIds) as { session_id: string; id: string; data: string }[];
 
     const firstUserMsgBySession = new Map<string, string>();
     const userMsgDataBySession = new Map<string, { id: string; data: string }>();
-    for (const m of userMsgs) {
-      if (!firstUserMsgBySession.has(m.session_id)) {
-        firstUserMsgBySession.set(m.session_id, m.id);
-      }
-      if (!userMsgDataBySession.has(m.session_id)) {
-        userMsgDataBySession.set(m.session_id, { id: m.id, data: m.data });
-      }
+    const assistantMsgBySession = new Map<string, { data: string }>();
+    for (const m of allMsgs) {
+      try {
+        const md = JSON.parse(m.data);
+        if (md.role === 'user') {
+          if (!firstUserMsgBySession.has(m.session_id)) {
+            firstUserMsgBySession.set(m.session_id, m.id);
+          }
+          if (!userMsgDataBySession.has(m.session_id)) {
+            userMsgDataBySession.set(m.session_id, { id: m.id, data: m.data });
+          }
+        } else if (md.role === 'assistant' && !assistantMsgBySession.has(m.session_id)) {
+          assistantMsgBySession.set(m.session_id, { data: m.data });
+        }
+      } catch { /* skip */ }
     }
 
-    // Get text parts for first user messages
+    // Get text parts for first user messages (filter in JS to avoid sql.js json_extract compat)
     const firstUserMsgIds = [...firstUserMsgBySession.values()];
     const textByMsgId = new Map<string, string[]>();
     if (firstUserMsgIds.length > 0) {
-      const textParts = db.prepare(
-        `SELECT message_id, data FROM part WHERE message_id IN (${firstUserMsgIds.map(() => '?').join(',')}) AND json_extract(data, '$.type') = 'text' ORDER BY time_created`
+      const allParts = db.prepare(
+        `SELECT message_id, data FROM part WHERE message_id IN (${firstUserMsgIds.map(() => '?').join(',')}) ORDER BY time_created`
       ).all(...firstUserMsgIds) as { message_id: string; data: string }[];
 
-      for (const p of textParts) {
+      for (const p of allParts) {
         try {
           const pd = JSON.parse(p.data);
+          if (pd.type !== 'text') continue;
           const text = pd.text || '';
           if (!textByMsgId.has(p.message_id)) textByMsgId.set(p.message_id, []);
           textByMsgId.get(p.message_id)!.push(text);
         } catch { /* skip */ }
-      }
-    }
-
-    // Get assistant messages for model name detection
-    const assistantMsgs = db.prepare(
-      `SELECT session_id, data FROM message WHERE session_id IN (${sessionIds.map(() => '?').join(',')}) AND json_extract(data, '$.role') = 'assistant' ORDER BY time_created`
-    ).all(...sessionIds) as { session_id: string; data: string }[];
-
-    const assistantMsgBySession = new Map<string, { data: string }>();
-    for (const m of assistantMsgs) {
-      if (!assistantMsgBySession.has(m.session_id)) {
-        assistantMsgBySession.set(m.session_id, { data: m.data });
       }
     }
 
@@ -174,17 +171,22 @@ function _readSession(db: CompatDB, sessionId: string): RawInteraction[] {
   const msgIds = messages.map(m => m.id);
   if (msgIds.length === 0) return [];
 
-  const allTextParts = msgIds.length > 0 ? db.prepare(
-    `SELECT message_id, data FROM part WHERE message_id IN (${msgIds.map(() => '?').join(',')}) AND json_extract(data, '$.type') = 'text' ORDER BY time_created`
+  // Load all parts for these messages, filter by type in JS (avoid sql.js json_extract compat)
+  const allPartRows = msgIds.length > 0 ? db.prepare(
+    `SELECT message_id, data FROM part WHERE message_id IN (${msgIds.map(() => '?').join(',')}) ORDER BY time_created`
   ).all(...msgIds) as { message_id: string; data: string }[] : [];
 
-  const allReasoningParts = msgIds.length > 0 ? db.prepare(
-    `SELECT message_id, data FROM part WHERE message_id IN (${msgIds.map(() => '?').join(',')}) AND json_extract(data, '$.type') = 'reasoning' ORDER BY time_created`
-  ).all(...msgIds) as { message_id: string; data: string }[] : [];
-
-  const allToolParts = msgIds.length > 0 ? db.prepare(
-    `SELECT message_id, data FROM part WHERE message_id IN (${msgIds.map(() => '?').join(',')}) AND json_extract(data, '$.type') = 'tool' ORDER BY time_created`
-  ).all(...msgIds) as { message_id: string; data: string }[] : [];
+  const allTextParts: { message_id: string; data: string }[] = [];
+  const allReasoningParts: { message_id: string; data: string }[] = [];
+  const allToolParts: { message_id: string; data: string }[] = [];
+  for (const p of allPartRows) {
+    try {
+      const pd = JSON.parse(p.data);
+      if (pd.type === 'text') allTextParts.push(p);
+      else if (pd.type === 'reasoning') allReasoningParts.push(p);
+      else if (pd.type === 'tool') allToolParts.push(p);
+    } catch { /* skip */ }
+  }
 
   const textByMsg = new Map<string, string[]>();
   for (const p of allTextParts) {

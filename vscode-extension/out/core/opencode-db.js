@@ -22,40 +22,44 @@ async function listSessions(dbPath) {
         for (const c of msgCounts) {
             countBySession.set(c.session_id, c.cnt);
         }
-        // Get first user message per session for query text
-        const userMsgs = db.prepare(`SELECT session_id, id, data FROM message WHERE session_id IN (${sessionIds.map(() => '?').join(',')}) AND json_extract(data, '$.role') = 'user' ORDER BY time_created`).all(...sessionIds);
+        // Load all messages for these sessions, filter by role in JS (avoid sql.js json_extract compat)
+        const allMsgs = db.prepare(`SELECT session_id, id, data FROM message WHERE session_id IN (${sessionIds.map(() => '?').join(',')}) ORDER BY time_created`).all(...sessionIds);
         const firstUserMsgBySession = new Map();
         const userMsgDataBySession = new Map();
-        for (const m of userMsgs) {
-            if (!firstUserMsgBySession.has(m.session_id)) {
-                firstUserMsgBySession.set(m.session_id, m.id);
+        const assistantMsgBySession = new Map();
+        for (const m of allMsgs) {
+            try {
+                const md = JSON.parse(m.data);
+                if (md.role === 'user') {
+                    if (!firstUserMsgBySession.has(m.session_id)) {
+                        firstUserMsgBySession.set(m.session_id, m.id);
+                    }
+                    if (!userMsgDataBySession.has(m.session_id)) {
+                        userMsgDataBySession.set(m.session_id, { id: m.id, data: m.data });
+                    }
+                }
+                else if (md.role === 'assistant' && !assistantMsgBySession.has(m.session_id)) {
+                    assistantMsgBySession.set(m.session_id, { data: m.data });
+                }
             }
-            if (!userMsgDataBySession.has(m.session_id)) {
-                userMsgDataBySession.set(m.session_id, { id: m.id, data: m.data });
-            }
+            catch { /* skip */ }
         }
-        // Get text parts for first user messages
+        // Get text parts for first user messages (filter in JS to avoid sql.js json_extract compat)
         const firstUserMsgIds = [...firstUserMsgBySession.values()];
         const textByMsgId = new Map();
         if (firstUserMsgIds.length > 0) {
-            const textParts = db.prepare(`SELECT message_id, data FROM part WHERE message_id IN (${firstUserMsgIds.map(() => '?').join(',')}) AND json_extract(data, '$.type') = 'text' ORDER BY time_created`).all(...firstUserMsgIds);
-            for (const p of textParts) {
+            const allParts = db.prepare(`SELECT message_id, data FROM part WHERE message_id IN (${firstUserMsgIds.map(() => '?').join(',')}) ORDER BY time_created`).all(...firstUserMsgIds);
+            for (const p of allParts) {
                 try {
                     const pd = JSON.parse(p.data);
+                    if (pd.type !== 'text')
+                        continue;
                     const text = pd.text || '';
                     if (!textByMsgId.has(p.message_id))
                         textByMsgId.set(p.message_id, []);
                     textByMsgId.get(p.message_id).push(text);
                 }
                 catch { /* skip */ }
-            }
-        }
-        // Get assistant messages for model name detection
-        const assistantMsgs = db.prepare(`SELECT session_id, data FROM message WHERE session_id IN (${sessionIds.map(() => '?').join(',')}) AND json_extract(data, '$.role') = 'assistant' ORDER BY time_created`).all(...sessionIds);
-        const assistantMsgBySession = new Map();
-        for (const m of assistantMsgs) {
-            if (!assistantMsgBySession.has(m.session_id)) {
-                assistantMsgBySession.set(m.session_id, { data: m.data });
             }
         }
         const result = [];
@@ -147,9 +151,23 @@ function _readSession(db, sessionId) {
     const msgIds = messages.map(m => m.id);
     if (msgIds.length === 0)
         return [];
-    const allTextParts = msgIds.length > 0 ? db.prepare(`SELECT message_id, data FROM part WHERE message_id IN (${msgIds.map(() => '?').join(',')}) AND json_extract(data, '$.type') = 'text' ORDER BY time_created`).all(...msgIds) : [];
-    const allReasoningParts = msgIds.length > 0 ? db.prepare(`SELECT message_id, data FROM part WHERE message_id IN (${msgIds.map(() => '?').join(',')}) AND json_extract(data, '$.type') = 'reasoning' ORDER BY time_created`).all(...msgIds) : [];
-    const allToolParts = msgIds.length > 0 ? db.prepare(`SELECT message_id, data FROM part WHERE message_id IN (${msgIds.map(() => '?').join(',')}) AND json_extract(data, '$.type') = 'tool' ORDER BY time_created`).all(...msgIds) : [];
+    // Load all parts for these messages, filter by type in JS (avoid sql.js json_extract compat)
+    const allPartRows = msgIds.length > 0 ? db.prepare(`SELECT message_id, data FROM part WHERE message_id IN (${msgIds.map(() => '?').join(',')}) ORDER BY time_created`).all(...msgIds) : [];
+    const allTextParts = [];
+    const allReasoningParts = [];
+    const allToolParts = [];
+    for (const p of allPartRows) {
+        try {
+            const pd = JSON.parse(p.data);
+            if (pd.type === 'text')
+                allTextParts.push(p);
+            else if (pd.type === 'reasoning')
+                allReasoningParts.push(p);
+            else if (pd.type === 'tool')
+                allToolParts.push(p);
+        }
+        catch { /* skip */ }
+    }
     const textByMsg = new Map();
     for (const p of allTextParts) {
         try {
