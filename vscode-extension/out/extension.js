@@ -165,14 +165,19 @@ async function handleClaudeImport(storage) {
         return;
     let filePaths = [];
     if (choice.value === 'auto') {
-        const claudeDir = getClaudeProjectsDir();
-        if (!claudeDir || !fs.existsSync(claudeDir)) {
-            vscode.window.showErrorMessage((0, i18n_1.t)('import.claude.dirNotFound', claudeDir || '~/.claude/projects'));
-            return;
+        // Scan Claude Code (~/.claude/projects) and CodeAgent 3.0 (~/.cac/projects)
+        const scanDirs = [
+            getClaudeProjectsDir(),
+            path.join(os.homedir(), '.cac', 'projects'),
+        ];
+        for (const dir of scanDirs) {
+            if (fs.existsSync(dir)) {
+                const found = findJsonlFiles(dir);
+                filePaths.push(...found);
+            }
         }
-        filePaths = findJsonlFiles(claudeDir);
         if (filePaths.length === 0) {
-            vscode.window.showInformationMessage((0, i18n_1.t)('import.claude.noFilesInDir', claudeDir));
+            vscode.window.showInformationMessage((0, i18n_1.t)('import.claude.noFilesInDir', scanDirs.filter(d => fs.existsSync(d)).join(', ') || '~/.claude/projects, ~/.cac/projects'));
             return;
         }
         const picked = await pickJsonlFiles(filePaths);
