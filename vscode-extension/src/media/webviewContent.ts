@@ -67,19 +67,19 @@ function __(key) {
 </script>
 <style nonce="${nonce}">
   :root {
-    --bg: #fafafc; --card-bg: #ffffff;
-    --text: #2c3040; --text-dim: #828ba0;
-    --border: #e0e3eb; --accent: #4d7cde;
-    --green: #2d9f6d; --orange: #c8712a;
-    --blue: #4d7cde; --purple: #7849b8;
-    --red: #d9434a; --yellow: #9d8200;
-    --theme-bar-bg: rgba(0,0,0,0.03);
-    --theme-btn-ring: rgba(77,124,222,0.5);
+    --bg: #f3f4f7; --card-bg: #ffffff;
+    --text: #1a1d2b; --text-dim: #4e5569;
+    --border: #d8dbe3; --accent: #3b6fd4;
+    --green: #23805a; --orange: #b05a1e;
+    --blue: #3b6fd4; --purple: #6942b8;
+    --red: #c8383f; --yellow: #8a7300;
+    --theme-bar-bg: rgba(0,0,0,0.025);
+    --theme-btn-ring: rgba(59,111,212,0.5);
   }
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body {
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-    background: var(--bg);
+    background: linear-gradient(180deg, #f5f6fa 0%, #edeff5 100%);
     color: var(--text);
     padding: 0 16px 16px 16px;
     font-size: clamp(13px, 0.75vw, 17px);

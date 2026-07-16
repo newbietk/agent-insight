@@ -147,7 +147,7 @@ async function handleCodeAgentImport(storage: import('./storage/db').Storage): P
     return;
   }
 
-  const filePaths = findJsonlFiles(cacDir);
+  const filePaths = findJsonlFiles(cacDir).filter(f => path.basename(f) !== 'obs.jsonl');
   if (filePaths.length === 0) {
     vscode.window.showInformationMessage(t('import.codeagent.noFiles', cacDir));
     return;
@@ -173,7 +173,7 @@ async function handleCodeAgentImport(storage: import('./storage/db').Storage): P
     async () => {
       for (const p of picked) {
         try {
-          const result = await importJsonlFile(p, storage);
+          const result = await importJsonlFile(storage, p);
           if (result === 'ok') imported++;
           else if (result === 'skip') skipped++;
           else errors.push(path.basename(p) + ': ' + result);
@@ -603,7 +603,7 @@ async function pickJsonlFiles(filePaths: string[], sourceLabel: string): Promise
       description: `${sourceLabel} · ${path.basename(f)}`,
       detail: path.dirname(f),
       filePath: f,
-      picked: true,
+      picked: false,
     };
   });
 
