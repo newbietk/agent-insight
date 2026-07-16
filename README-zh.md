@@ -70,7 +70,7 @@ npm run dev
 
 ## 方式一：VSCode 插件
 
-无需离开编辑器即可分析 Session。VSCode 插件将 6 个分析 Tab 集成到侧边栏面板中。
+无需离开编辑器即可分析 Session。VSCode 插件将 7 个分析 Tab 集成到侧边栏面板中。
 
 **需要 VSCode >= 1.92.0**
 
@@ -84,10 +84,13 @@ npm run dev
 ### 快速开始
 
 1. 点击活动栏的 **图表图标**（📊）
-2. 点击 **云下载图标** → **自动检测** `~/.claude/projects`（或选择 `.jsonl` 文件）
-3. 点击任意 Session 打开 6 个分析 Tab 的详细面板
+2. 点击 **云下载图标** → 选择 **自动检测** 或 **手动导入** 模式
+3. 选择数据源：Claude Code / CodeAgent 3.0 / OpenCode
+4. 点击任意 Session 打开 7 个 Tab 的分析面板
 
-**6 个分析 Tab：** Overview（Token 趋势）· Turns（上下文组成）· Skills（技能事件）· File Reads（文件读取）· Subagents（子代理）· Breakdown（Token 拆解）
+**7 个分析 Tab：** Overview（Token 趋势与摘要）· Turns（上下文组成 + 子代理通道）· Trace（搜索与传播链）· Context（多 Agent 上下文增长）· Audit（流程审计）· Skills（技能事件时间线）· File Ops（按文件分析与 diff）
+
+**3 种数据源：** Claude Code · CodeAgent 3.0 · OpenCode — 每种均支持自动检测和手动导入。
 
 详细用法、配置、打包和开发指南请参见 [vscode-extension/README-zh.md](vscode-extension/README-zh.md)（[English](vscode-extension/README.md)）。
 

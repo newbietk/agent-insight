@@ -70,7 +70,7 @@ If you want to submit a session with structured feedback to the cloud platform:
 
 ## Option 1: VSCode Extension
 
-Analyze sessions without leaving your editor. The VSCode extension brings 6 tabs of analysis into a sidebar panel.
+Analyze sessions without leaving your editor. The VSCode extension brings 7 tabs of analysis into a sidebar panel.
 
 **Requires VSCode >= 1.92.0**
 
@@ -84,10 +84,13 @@ Download the latest `.vsix` from [Releases](https://github.com/newbietk/agent-in
 ### Quick Start
 
 1. Click the **graph icon** (📊) in the activity bar
-2. Click **cloud-download** → **Auto-detect** `~/.claude/projects` (or pick a `.jsonl` file)
-3. Click any session to open the 6-tab analysis panel
+2. Click **cloud-download** → choose **Auto-detect** or **Manual import** mode
+3. Select source agent: Claude Code / CodeAgent 3.0 / OpenCode
+4. Click any session to open the 7-tab analysis panel
 
-**6 Analysis Tabs:** Overview (token trends) · Turns (context composition) · Skills · File Reads · Subagents · Breakdown
+**7 Analysis Tabs:** Overview (token trends & summary) · Turns (context composition + subagent lanes) · Trace (search & propagation) · Context (multi-agent growth) · Audit (workflow analysis) · Skills (skill timeline) · File Ops (per-file analysis & diffs)
+
+**3 Agent Sources:** Claude Code · CodeAgent 3.0 · OpenCode — each with auto-detect & manual import modes.
 
 See [vscode-extension/README.md](vscode-extension/README.md) ([中文](vscode-extension/README-zh.md)) for detailed usage, configuration, packaging, and development guide.
 
