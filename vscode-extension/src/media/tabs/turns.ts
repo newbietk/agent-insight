@@ -93,14 +93,45 @@ function renderTurnCards(filterSubagentSessionId) {
     }
 
     var selectedCls = (selectedTurnId === t.id) ? ' selected' : '';
-    html += '<div class="turn-card' + selectedCls + '" data-turn-id="' + esc(t.id) + '">' +
+    var subagentCls = t.isSubagent ? ' turn-card-subagent' : '';
+    html += '<div class="turn-card' + selectedCls + subagentCls + '" data-turn-id="' + esc(t.id) + '">' +
       '<div class="turn-card-top">' +
-        '<span class="turn-card-role" style="color:' + roleColor + '">' + roleIcon + ' ' + esc(t.role) + (t.isSubagent ? ' 🖥' : '') + '</span>' +
+        '<span class="turn-card-role" style="color:' + roleColor + '">' + roleIcon + ' ' + esc(t.role) + '</span>' +
         '<span class="turn-card-index">#' + (t.turnIndex + 1) + '</span>' +
       '</div>' +
-      '<div class="turn-card-summary">' + esc(t.contentSummary || __('turns.noSummary')) + '</div>' +
-      '<div class="turn-card-meta">' +
-        '<span class="turn-card-tokens">' + fmt(t.totalTokens) + ' tk</span>' +
+      '<div class="turn-card-summary">' + esc(t.contentSummary || __('turns.noSummary')) + '</div>';
+
+    // Badges row: subagent marker + tool count + skill events
+    var badges = [];
+    if (t.isSubagent) {
+      var subName = t.subagentName || t.agentName || '';
+      badges.push({ text: '🖥 ' + esc(subName), cls: 'badge-orange' });
+    }
+    if (t.toolCalls && t.toolCalls.length > 0) {
+      var taskCount = 0;
+      for (var tci = 0; tci < t.toolCalls.length; tci++) {
+        if (t.toolCalls[tci].toolName === 'Agent' || t.toolCalls[tci].toolName === 'Task') taskCount++;
+      }
+      var toolBadge = t.toolCalls.length + ' tools';
+      if (taskCount > 0) toolBadge += ' · ' + taskCount + ' sub';
+      badges.push({ text: toolBadge, cls: 'badge-outline' });
+    }
+    if (t.skillEvents && t.skillEvents.length > 0) {
+      var skillName = t.skillEvents[0].skillName;
+      var skillText = '⚡ ' + esc(skillName);
+      if (t.skillEvents.length > 1) skillText += ' +' + (t.skillEvents.length - 1);
+      badges.push({ text: skillText, cls: 'badge-yellow' });
+    }
+    if (badges.length > 0) {
+      html += '<div class="turn-card-badges">';
+      for (var bi = 0; bi < badges.length; bi++) {
+        html += '<span class="badge ' + badges[bi].cls + '">' + badges[bi].text + '</span>';
+      }
+      html += '</div>';
+    }
+
+    html += '<div class="turn-card-meta">' +
+        '<span class="turn-card-tokens">' + (t.totalTokens > 0 ? fmt(t.totalTokens) + ' tk' : '—') + '</span>' +
         '<span class="turn-card-latency">' + fmtMs(t.latencyMs) + '</span>' +
         (pctStr ? '<span class="turn-card-ctx" style="' + pctColor + '">' + pctStr + '</span>' : '') +
       '</div>' +

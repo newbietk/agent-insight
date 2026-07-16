@@ -34,8 +34,11 @@ export function getWebviewContent(
   const i18nBundle = getBundle();
 
   const assistantTurns = turns.filter(t => t.role === 'assistant');
+  // Chart-only: exclude turns with zero token data (prevents cliff drops)
+  const chartTurns = assistantTurns.filter(t => t.totalTokens > 0);
   const turnsJson = safeJson(turns);
   const astJson = safeJson(assistantTurns);
+  const chartTurnsJson = safeJson(chartTurns);
   const sessionJson = safeJson(session);
   const i18nJson = safeJson(i18nBundle);
 
@@ -222,15 +225,19 @@ function __(key) {
   }
   .turn-card:hover { background: rgba(255,255,255,0.04); }
   .turn-card.selected { background: rgba(0, 122, 204, 0.12); border-left: 3px solid var(--accent); padding-left: 9px; }
+  .turn-card-subagent { background: rgba(224,154,107,0.04); border-left: 3px solid var(--orange); padding-left: 9px; }
+  .turn-card-subagent:hover { background: rgba(224,154,107,0.08); }
+  .turn-card-subagent.selected { background: rgba(224,154,107,0.12); border-left-color: var(--accent); }
   .turn-card-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px; }
   .turn-card-role { font-size: 11px; font-weight: 600; }
   .turn-card-index { font-size: 10px; color: var(--text-dim); }
   .turn-card-summary {
     font-size: 12px; color: var(--text); line-height: 1.4;
     overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-    margin-bottom: 6px;
+    margin-bottom: 4px;
   }
-  .turn-card-meta { display: flex; gap: 10px; font-size: 10px; color: var(--text-dim); margin-bottom: 6px; }
+  .turn-card-badges { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 4px; }
+  .turn-card-meta { display: flex; gap: 10px; font-size: 10px; color: var(--text-dim); margin-bottom: 4px; }
   .turn-card-tokens { font-weight: 600; color: var(--blue); }
   .turn-card-latency { color: var(--text-dim); }
   .turn-card-ctx { font-weight: 600; }
@@ -389,6 +396,8 @@ function __(key) {
   .badge-yellow { background: rgba(220,200,80,0.15); color: var(--yellow); }
   .badge-red { background: rgba(232,103,107,0.15); color: var(--red); }
   .badge-blue { background: rgba(98,154,240,0.15); color: var(--blue); }
+  .badge-orange { background: rgba(224,154,107,0.15); color: var(--orange); }
+  .badge-outline { background: transparent; border: 1px solid var(--border); color: var(--text-dim); }
 
   /* ── Copy button ── */
   .td-copy-btn {
@@ -619,6 +628,7 @@ ${renderFileOpsTab()}
 // ── Data ──
 var turns = ${turnsJson};
 var assistantTurns = ${astJson};
+var chartTurns = ${chartTurnsJson};   // filtered: totalTokens > 0, for charts only
 var session = ${sessionJson};
 var ctxLimit = ${ctxLimit};
 

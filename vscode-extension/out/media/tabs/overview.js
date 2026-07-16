@@ -270,7 +270,7 @@ var chartDots = []; // { x, y, turnId, turnIndex, totalTokens, contentSummary, r
 
 function drawTokenTrendChart() {
   var canvas = document.getElementById('tokenTrendChart');
-  if (!canvas || assistantTurns.length === 0) return;
+  if (!canvas || chartTurns.length === 0) return;
   var parent = canvas.parentElement;
   if (!parent) return;
   var ctx = canvas.getContext('2d');
@@ -290,8 +290,8 @@ function drawTokenTrendChart() {
   var ph = H - pad.top - pad.bottom;
 
   var maxVal = 1;
-  for (var i = 0; i < assistantTurns.length; i++) {
-    maxVal = Math.max(maxVal, toNumber(assistantTurns[i].totalTokens));
+  for (var i = 0; i < chartTurns.length; i++) {
+    maxVal = Math.max(maxVal, toNumber(chartTurns[i].totalTokens));
   }
 
   ctx.fillStyle = currentTheme === 'light' ? '#fafafc' : '#1e1e1e';
@@ -309,25 +309,25 @@ function drawTokenTrendChart() {
     ctx.fillText(fmt(Math.round(maxVal * gi / 4)), pad.left - 8, gy + 4);
   }
 
-  // X labels (keep xstep for label spacing)
-  var xstep = Math.max(1, Math.floor(assistantTurns.length / 8));
+  // X labels (use actual turnIndex, not array index)
+  var xstep = Math.max(1, Math.floor(chartTurns.length / 8));
   ctx.textAlign = 'center';
-  for (var xi = 0; xi < assistantTurns.length; xi += xstep) {
-    var lx = pad.left + (xi / (assistantTurns.length - 1 || 1)) * pw;
+  for (var xi = 0; xi < chartTurns.length; xi += xstep) {
+    var lx = pad.left + (xi / (chartTurns.length - 1 || 1)) * pw;
     ctx.fillStyle = '#888';
     ctx.font = '10px -apple-system, sans-serif';
-    ctx.fillText('#' + (xi+1), lx, H - pad.bottom + 15);
+    ctx.fillText('#' + (chartTurns[xi].turnIndex + 1), lx, H - pad.bottom + 15);
   }
 
   // Area fill
   ctx.beginPath();
   var ax = pad.left;
-  var ay = pad.top + ph * (1 - toNumber(assistantTurns[0].totalTokens) / maxVal);
+  var ay = pad.top + ph * (1 - toNumber(chartTurns[0].totalTokens) / maxVal);
   ctx.moveTo(ax, pad.top + ph);
   ctx.lineTo(ax, ay);
-  for (var ai = 0; ai < assistantTurns.length; ai++) {
-    var aax = pad.left + (ai / (assistantTurns.length - 1 || 1)) * pw;
-    var aay = pad.top + ph * (1 - toNumber(assistantTurns[ai].totalTokens) / maxVal);
+  for (var ai = 0; ai < chartTurns.length; ai++) {
+    var aax = pad.left + (ai / (chartTurns.length - 1 || 1)) * pw;
+    var aay = pad.top + ph * (1 - toNumber(chartTurns[ai].totalTokens) / maxVal);
     ctx.lineTo(aax, aay);
   }
   ctx.lineTo(aax, pad.top + ph);
@@ -338,9 +338,9 @@ function drawTokenTrendChart() {
   // Line
   ctx.beginPath();
   ctx.moveTo(ax, ay);
-  for (var li = 0; li < assistantTurns.length; li++) {
-    var llx = pad.left + (li / (assistantTurns.length - 1 || 1)) * pw;
-    var lly = pad.top + ph * (1 - toNumber(assistantTurns[li].totalTokens) / maxVal);
+  for (var li = 0; li < chartTurns.length; li++) {
+    var llx = pad.left + (li / (chartTurns.length - 1 || 1)) * pw;
+    var lly = pad.top + ph * (1 - toNumber(chartTurns[li].totalTokens) / maxVal);
     ctx.lineTo(llx, lly);
   }
   ctx.strokeStyle = '#569cd6';
@@ -348,22 +348,22 @@ function drawTokenTrendChart() {
   ctx.lineJoin = 'round';
   ctx.stroke();
 
-  // Dots — draw for EVERY turn and store positions for hover/click
+  // Dots — store positions for hover/click
   chartDots = [];
-  for (var di = 0; di < assistantTurns.length; di++) {
-    var dx = pad.left + (di / (assistantTurns.length - 1 || 1)) * pw;
-    var dy = pad.top + ph * (1 - toNumber(assistantTurns[di].totalTokens) / maxVal);
+  for (var di = 0; di < chartTurns.length; di++) {
+    var dx = pad.left + (di / (chartTurns.length - 1 || 1)) * pw;
+    var dy = pad.top + ph * (1 - toNumber(chartTurns[di].totalTokens) / maxVal);
     ctx.beginPath(); ctx.arc(dx, dy, 3.5, 0, Math.PI*2);
     ctx.fillStyle = '#569cd6'; ctx.fill();
     ctx.strokeStyle = currentTheme === 'light' ? '#fafafc' : '#1e1e1e'; ctx.lineWidth = 1.5; ctx.stroke();
     chartDots.push({
       x: dx, y: dy,
-      turnId: assistantTurns[di].id,
-      turnIndex: di,
-      totalTokens: toNumber(assistantTurns[di].totalTokens),
-      contentSummary: assistantTurns[di].contentSummary || '',
-      role: assistantTurns[di].role,
-      latencyMs: toNumber(assistantTurns[di].latencyMs)
+      turnId: chartTurns[di].id,
+      turnIndex: chartTurns[di].turnIndex,
+      totalTokens: toNumber(chartTurns[di].totalTokens),
+      contentSummary: chartTurns[di].contentSummary || '',
+      role: chartTurns[di].role,
+      latencyMs: toNumber(chartTurns[di].latencyMs)
     });
   }
 
