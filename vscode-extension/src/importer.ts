@@ -1,12 +1,13 @@
-import { readSession, listSessions as listClaudeSessions } from './core/claude-jsonl';
+import { readSession, listSessions as listClaudeSessions, collectSubagentToolUseMappings } from './core/claude-jsonl';
 import { readSession as opencodeReadSession, listSessions as opencodeListSessions } from './core/opencode-db';
 import { normalize } from './core/normalize';
 import { splitIntoTurns, resetIdCounter } from './core/turn-split';
 import type { TurnRow, ToolCallRow, SkillEventRow } from './core/turn-split';
 import type { RawInteraction } from './core/types';
 import { Storage } from './storage/db';
-import type { SessionRow, SessionAggregates } from './storage/db';
+import type { SessionRow, SessionAggregates, SubagentLinkRow } from './storage/db';
 import { t } from './i18n';
+import * as path from 'node:path';
 
 export interface ImportResult {
   sessionId: string;
@@ -120,6 +121,9 @@ function pipelineImport(
 
   storage.importSessionData(session, turns, toolCalls, skillEvents);
 
+  // Build subagent links (bridges between dispatching turns and subagent sessions)
+  buildSubagentLinks(storage, rawInteractions, sourceType, sessionId, sourcePath, turns, toolCalls);
+
   return {
     sessionId,
     taskId,
@@ -131,6 +135,94 @@ function pipelineImport(
     totalCost: agg.totalCost,
     model: agg.model,
   };
+}
+
+/** Agent/Task tool names that dispatch subagents. */
+const SUBAGENT_DISPATCH_TOOLS = new Set(['Agent', 'Task', 'agent', 'task']);
+
+/** Build subagent_links bridges from raw interactions and insert them into storage. */
+function buildSubagentLinks(
+  storage: Storage,
+  rawInteractions: RawInteraction[],
+  sourceType: string,
+  sessionId: string,
+  sourcePath: string,
+  turns: TurnRow[],
+  toolCalls: ToolCallRow[],
+): void {
+  if (sourceType !== 'claude-jsonl') return; // OpenCode subagent handling TBD
+
+  // Build a map: toolCallId → turnId
+  const tcIdToTurnId = new Map<string, string>();
+  for (const tc of toolCalls) {
+    tcIdToTurnId.set(tc.toolCallId, tc.turnId);
+  }
+
+  // Build a map: turnId → TurnRow
+  const turnMap = new Map<string, TurnRow>();
+  for (const t of turns) {
+    turnMap.set(t.id, t);
+  }
+
+  // Get subagent mappings for this session (toolUseId → subagentSessionId)
+  const parentDir = path.dirname(sourcePath);
+  const taskId = path.basename(sourcePath, '.jsonl');
+  const subagentMappings = collectSubagentToolUseMappings(parentDir, taskId);
+
+  if (subagentMappings.size === 0) return;
+
+  // Iterate raw interactions to find Agent/Task dispatches
+  for (const interaction of rawInteractions) {
+    if (interaction.role !== 'assistant' || !interaction.tool_calls) continue;
+
+    for (const tc of interaction.tool_calls) {
+      if (!SUBAGENT_DISPATCH_TOOLS.has(tc.toolName)) continue;
+
+      const subagentSessionId = subagentMappings.get(tc.toolCallId);
+      if (!subagentSessionId) continue;
+
+      const turnId = tcIdToTurnId.get(tc.toolCallId);
+      if (!turnId) continue;
+
+      // Extract subagent type and name from args
+      let subagentType: string | null = null;
+      let subagentName: string | null = null;
+      let dispatchContent: string | null = null;
+      try {
+        if (tc.argsJson) {
+          const args = JSON.parse(tc.argsJson);
+          subagentType = args.subagent_type || args.agent_type || args.type || null;
+          subagentName = args.subagent_name || args.agent_name || args.name || args.description || null;
+          dispatchContent = args.prompt || args.description || args.instruction || null;
+        }
+      } catch { /* ignore parse errors */ }
+
+      // Compute aggregate tokens from subagent turns
+      const subTurns = turns.filter(t => t.subagentSessionId === subagentSessionId);
+      let subagentTokens = 0;
+      let subagentLatencyMs = 0;
+      for (const st of subTurns) {
+        subagentTokens += st.totalTokens;
+        subagentLatencyMs += st.latencyMs;
+      }
+
+      const link: SubagentLinkRow = {
+        id: `sl_${sessionId}_${tc.toolCallId}`,
+        sessionId,
+        dispatchTurnId: turnId,
+        dispatchToolCallId: tc.toolCallId,
+        subagentSessionId,
+        subagentType,
+        subagentName,
+        dispatchContent: dispatchContent?.substring(0, 500) ?? null,
+        status: 'completed',
+        subagentTokens,
+        subagentLatencyMs,
+      };
+
+      storage.insertSubagentLink(link);
+    }
+  }
 }
 
 /**

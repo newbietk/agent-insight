@@ -1,4 +1,37 @@
 "use strict";
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    var desc = Object.getOwnPropertyDescriptor(m, k);
+    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
+      desc = { enumerable: true, get: function() { return m[k]; } };
+    }
+    Object.defineProperty(o, k2, desc);
+}) : (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    o[k2] = m[k];
+}));
+var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
+    Object.defineProperty(o, "default", { enumerable: true, value: v });
+}) : function(o, v) {
+    o["default"] = v;
+});
+var __importStar = (this && this.__importStar) || (function () {
+    var ownKeys = function(o) {
+        ownKeys = Object.getOwnPropertyNames || function (o) {
+            var ar = [];
+            for (var k in o) if (Object.prototype.hasOwnProperty.call(o, k)) ar[ar.length] = k;
+            return ar;
+        };
+        return ownKeys(o);
+    };
+    return function (mod) {
+        if (mod && mod.__esModule) return mod;
+        var result = {};
+        if (mod != null) for (var k = ownKeys(mod), i = 0; i < k.length; i++) if (k[i] !== "default") __createBinding(result, mod, k[i]);
+        __setModuleDefault(result, mod);
+        return result;
+    };
+})();
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.importJsonlFile = importJsonlFile;
 exports.importOpenCodeSession = importOpenCodeSession;
@@ -11,6 +44,7 @@ const opencode_db_1 = require("./core/opencode-db");
 const normalize_1 = require("./core/normalize");
 const turn_split_1 = require("./core/turn-split");
 const i18n_1 = require("./i18n");
+const path = __importStar(require("node:path"));
 function generateId() {
     const ts = Date.now().toString(36);
     const rand = Math.random().toString(36).substring(2, 8);
@@ -87,6 +121,8 @@ function pipelineImport(storage, rawInteractions, sourceType, framework, taskId,
         createdAt: new Date().toISOString(),
     };
     storage.importSessionData(session, turns, toolCalls, skillEvents);
+    // Build subagent links (bridges between dispatching turns and subagent sessions)
+    buildSubagentLinks(storage, rawInteractions, sourceType, sessionId, sourcePath, turns, toolCalls);
     return {
         sessionId,
         taskId,
@@ -98,6 +134,79 @@ function pipelineImport(storage, rawInteractions, sourceType, framework, taskId,
         totalCost: agg.totalCost,
         model: agg.model,
     };
+}
+/** Agent/Task tool names that dispatch subagents. */
+const SUBAGENT_DISPATCH_TOOLS = new Set(['Agent', 'Task', 'agent', 'task']);
+/** Build subagent_links bridges from raw interactions and insert them into storage. */
+function buildSubagentLinks(storage, rawInteractions, sourceType, sessionId, sourcePath, turns, toolCalls) {
+    if (sourceType !== 'claude-jsonl')
+        return; // OpenCode subagent handling TBD
+    // Build a map: toolCallId → turnId
+    const tcIdToTurnId = new Map();
+    for (const tc of toolCalls) {
+        tcIdToTurnId.set(tc.toolCallId, tc.turnId);
+    }
+    // Build a map: turnId → TurnRow
+    const turnMap = new Map();
+    for (const t of turns) {
+        turnMap.set(t.id, t);
+    }
+    // Get subagent mappings for this session (toolUseId → subagentSessionId)
+    const parentDir = path.dirname(sourcePath);
+    const taskId = path.basename(sourcePath, '.jsonl');
+    const subagentMappings = (0, claude_jsonl_1.collectSubagentToolUseMappings)(parentDir, taskId);
+    if (subagentMappings.size === 0)
+        return;
+    // Iterate raw interactions to find Agent/Task dispatches
+    for (const interaction of rawInteractions) {
+        if (interaction.role !== 'assistant' || !interaction.tool_calls)
+            continue;
+        for (const tc of interaction.tool_calls) {
+            if (!SUBAGENT_DISPATCH_TOOLS.has(tc.toolName))
+                continue;
+            const subagentSessionId = subagentMappings.get(tc.toolCallId);
+            if (!subagentSessionId)
+                continue;
+            const turnId = tcIdToTurnId.get(tc.toolCallId);
+            if (!turnId)
+                continue;
+            // Extract subagent type and name from args
+            let subagentType = null;
+            let subagentName = null;
+            let dispatchContent = null;
+            try {
+                if (tc.argsJson) {
+                    const args = JSON.parse(tc.argsJson);
+                    subagentType = args.subagent_type || args.agent_type || args.type || null;
+                    subagentName = args.subagent_name || args.agent_name || args.name || args.description || null;
+                    dispatchContent = args.prompt || args.description || args.instruction || null;
+                }
+            }
+            catch { /* ignore parse errors */ }
+            // Compute aggregate tokens from subagent turns
+            const subTurns = turns.filter(t => t.subagentSessionId === subagentSessionId);
+            let subagentTokens = 0;
+            let subagentLatencyMs = 0;
+            for (const st of subTurns) {
+                subagentTokens += st.totalTokens;
+                subagentLatencyMs += st.latencyMs;
+            }
+            const link = {
+                id: `sl_${sessionId}_${tc.toolCallId}`,
+                sessionId,
+                dispatchTurnId: turnId,
+                dispatchToolCallId: tc.toolCallId,
+                subagentSessionId,
+                subagentType,
+                subagentName,
+                dispatchContent: dispatchContent?.substring(0, 500) ?? null,
+                status: 'completed',
+                subagentTokens,
+                subagentLatencyMs,
+            };
+            storage.insertSubagentLink(link);
+        }
+    }
 }
 /**
  * Import a single Claude Code JSONL file into storage.

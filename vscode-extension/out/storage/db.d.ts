@@ -99,9 +99,23 @@ export interface SkillEventDetail {
     success: boolean;
     durationMs: number;
 }
+export interface SubagentLinkRow {
+    id: string;
+    sessionId: string;
+    dispatchTurnId: string;
+    dispatchToolCallId: string;
+    subagentSessionId: string;
+    subagentType: string | null;
+    subagentName: string | null;
+    dispatchContent: string | null;
+    status: string;
+    subagentTokens: number;
+    subagentLatencyMs: number;
+}
 export interface SessionDetailData {
     session: SessionRow;
     turns: TurnDetailWithToolCalls[];
+    bridges?: SubagentLinkRow[];
 }
 export declare class Storage {
     private db;
@@ -125,6 +139,8 @@ export declare class Storage {
     insertSkillEvent(se: SkillEventRow & {
         turnId: string;
     }): void;
+    insertSubagentLink(link: SubagentLinkRow): void;
+    getSubagentLinks(sessionId: string): SubagentLinkRow[];
     importSessionData(session: SessionRow, turns: TurnRow[], toolCalls: ToolCallRow[], skillEvents: SkillEventRow[]): void;
     listSessions(): SessionListItem[];
     getSession(id: string): SessionRow | null;

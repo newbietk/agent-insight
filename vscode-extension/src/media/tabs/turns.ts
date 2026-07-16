@@ -59,6 +59,29 @@ var ROLE_ICONS = {
   tool: '🔧'
 };
 
+// Bridges lookup: dispatchTurnId → [{ subagentSessionId, subagentType, subagentName, ... }]
+var bridgesByTurnId = {};
+(function buildBridgesLookup() {
+  if (!bridges || bridges.length === 0) return;
+  for (var bi = 0; bi < bridges.length; bi++) {
+    var b = bridges[bi];
+    if (!bridgesByTurnId[b.dispatchTurnId]) bridgesByTurnId[b.dispatchTurnId] = [];
+    bridgesByTurnId[b.dispatchTurnId].push(b);
+  }
+})();
+
+// Index subagent turns by sessionId for quick lookup
+var subTurnsBySession = {};
+(function buildSubTurnsIndex() {
+  for (var i = 0; i < turns.length; i++) {
+    var t = turns[i];
+    if (t.isSubagent && t.subagentSessionId) {
+      if (!subTurnsBySession[t.subagentSessionId]) subTurnsBySession[t.subagentSessionId] = [];
+      subTurnsBySession[t.subagentSessionId].push(t);
+    }
+  }
+})();
+
 function renderTurnCards(filterSubagentSessionId) {
   var list = document.getElementById('turnsCardList');
   if (!list) return;
@@ -136,14 +159,117 @@ function renderTurnCards(filterSubagentSessionId) {
         (pctStr ? '<span class="turn-card-ctx" style="' + pctColor + '">' + pctStr + '</span>' : '') +
       '</div>' +
     '</div>';
+
+    // ── Subagent lanes: show dispatched subagents under root turns ──
+    if (!t.isSubagent && bridgesByTurnId[t.id]) {
+      var dispBridges = bridgesByTurnId[t.id];
+      for (var dbi = 0; dbi < dispBridges.length; dbi++) {
+        var br = dispBridges[dbi];
+        var subId = 'sublane-' + t.id + '-' + dbi;
+        var subTurns = subTurnsBySession[br.subagentSessionId] || [];
+        var subTotalTokens = br.subagentTokens || 0;
+        var subLatency = br.subagentLatencyMs || 0;
+        var subName = br.subagentName || br.subagentType || br.subagentSessionId || '';
+        if (subName.length > 30) subName = subName.substring(0, 30) + '...';
+        var subTypeStr = br.subagentType ? ' · ' + esc(br.subagentType) : '';
+
+        html += '<div class="turn-card subagent-lane" data-subagent-lane="' + subId + '" style="margin-left:16px;border-left:3px solid var(--orange);background:rgba(224,154,107,0.03)">';
+        html += '<div class="td-section-header" data-expand="' + subId + '" style="padding:6px 8px;font-size:11px">';
+        html += '<span class="badge badge-orange" style="font-size:10px">🤖 sub</span>';
+        html += '<span class="td-section-title" style="font-size:11px">' + esc(subName) + '</span>';
+        html += '<span class="td-section-meta">' + subTurns.length + ' turns' + subTypeStr + '</span>';
+        if (subTotalTokens > 0) html += '<span class="td-section-meta" style="margin-left:4px;color:var(--blue)">' + fmt(subTotalTokens) + ' tk</span>';
+        if (subLatency > 0) html += '<span class="td-section-meta" style="margin-left:4px">' + fmtMs(subLatency) + '</span>';
+        html += '<span class="td-section-arrow">▶</span>';
+        html += '</div>';
+
+        // Expandable body: subagent turn summaries
+        html += '<div id="' + subId + '" class="td-section-body" style="display:none;margin:4px;padding:6px">';
+        if (subTurns.length > 0) {
+          html += '<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">';
+          html += '<span style="font-size:10px;color:var(--text-dim)">' + subTurns.length + ' subagent turns</span>';
+          html += '<button class="card-btn card-btn-sm" data-subagent-nav="' + esc(br.subagentSessionId) + '">🔍 ' + esc(__('subagents.title') || 'View subagent') + '</button>';
+          html += '</div>';
+          for (var sti = 0; sti < Math.min(subTurns.length, 5); sti++) {
+            var st = subTurns[sti];
+            html += '<div class="turn-row-sub" style="padding:3px 8px;font-size:10px;display:flex;justify-content:space-between;border-bottom:1px solid rgba(62,62,66,0.15)">';
+            html += '<span style="color:var(--accent);cursor:pointer" data-turn-select="' + esc(st.id) + '">#' + (st.turnIndex + 1) + ' ' + esc(st.contentSummary || __('turns.noSummary')).substring(0, 60) + '</span>';
+            html += '<span style="color:var(--text-dim)">' + (st.totalTokens > 0 ? fmt(st.totalTokens) + ' tk' : '—') + '</span>';
+            html += '</div>';
+          }
+          if (subTurns.length > 5) {
+            html += '<div style="font-size:10px;color:var(--text-dim);padding:3px 8px">... +' + (subTurns.length - 5) + ' more turns</div>';
+          }
+          if (br.dispatchContent) {
+            html += '<div style="margin-top:8px;font-size:10px;color:var(--text-dim)">';
+            html += '<span style="font-weight:600">' + esc(__('trace.medTaskDispatch') || 'Dispatch prompt') + ':</span><br>';
+            html += '<span style="white-space:pre-wrap;word-break:break-word">' + esc(br.dispatchContent.substring(0, 300)) + (br.dispatchContent.length > 300 ? '...' : '') + '</span>';
+            html += '</div>';
+          }
+        } else {
+          html += '<span style="font-size:10px;color:var(--text-dim)">' + esc(__('subagents.noSessions') || 'No subagent turns found') + '</span>';
+        }
+        html += '</div>';
+        html += '</div>';
+      }
+    }
   }
   list.innerHTML = html;
 
   list.querySelectorAll('.turn-card').forEach(function(card) {
     card.addEventListener('click', function(e) {
       if (e.target.closest('.card-btn')) return;
+      if (e.target.closest('.subagent-lane')) return;
+      if (e.target.closest('.turn-row-sub')) return;
+      if (e.target.closest('[data-subagent-nav]')) return;
       var tid = this.getAttribute('data-turn-id');
       if (tid) selectTurn(tid);
+    });
+  });
+
+  // ── Bind subagent lane expand/collapse ──
+  list.querySelectorAll('.subagent-lane [data-expand]').forEach(function(el) {
+    el.addEventListener('click', function(e) {
+      e.stopPropagation();
+      var targetId = this.getAttribute('data-expand');
+      var body = document.getElementById(targetId);
+      var arrow = this.querySelector('.td-section-arrow');
+      if (body) {
+        var isOpen = body.style.display !== 'none';
+        body.style.display = isOpen ? 'none' : 'block';
+        if (arrow) arrow.textContent = isOpen ? '▶' : '▼';
+      }
+    });
+  });
+
+  // ── Bind subagent turn row clicks → select that subagent turn ──
+  list.querySelectorAll('[data-turn-select]').forEach(function(el) {
+    el.addEventListener('click', function(e) {
+      e.stopPropagation();
+      var tid = this.getAttribute('data-turn-select');
+      if (tid) {
+        renderTurnCards(null);
+        selectTurn(tid);
+        // Scroll to the selected card
+        setTimeout(function() {
+          var card = document.querySelector('.turn-card[data-turn-id="' + esc(tid) + '"]');
+          if (card) card.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }, 50);
+      }
+    });
+  });
+
+  // ── Bind "View subagent" button → navigate to subagents tab ──
+  list.querySelectorAll('[data-subagent-nav]').forEach(function(btn) {
+    btn.addEventListener('click', function(e) {
+      e.stopPropagation();
+      var sid = this.getAttribute('data-subagent-nav');
+      if (sid && window.__kirinai) {
+        window.__kirinai.navigate('subagents');
+        setTimeout(function() {
+          if (window.__kirinai) window.__kirinai.navigate('turns', { subagentSessionId: sid });
+        }, 100);
+      }
     });
   });
 

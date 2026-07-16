@@ -152,10 +152,26 @@ class Storage {
         durationMs INTEGER DEFAULT 0
       );
 
+      CREATE TABLE IF NOT EXISTS subagent_links (
+        id TEXT PRIMARY KEY,
+        sessionId TEXT NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
+        dispatchTurnId TEXT NOT NULL REFERENCES turns(id) ON DELETE CASCADE,
+        dispatchToolCallId TEXT NOT NULL,
+        subagentSessionId TEXT NOT NULL,
+        subagentType TEXT,
+        subagentName TEXT,
+        dispatchContent TEXT,
+        status TEXT DEFAULT 'completed',
+        subagentTokens INTEGER DEFAULT 0,
+        subagentLatencyMs INTEGER DEFAULT 0
+      );
+
       CREATE INDEX IF NOT EXISTS idx_turns_session ON turns(sessionId);
       CREATE INDEX IF NOT EXISTS idx_tool_calls_turn ON tool_calls(turnId);
       CREATE INDEX IF NOT EXISTS idx_skill_events_turn ON skill_events(turnId);
       CREATE INDEX IF NOT EXISTS idx_sessions_taskId ON sessions(taskId);
+      CREATE INDEX IF NOT EXISTS idx_subagent_links_session ON subagent_links(sessionId);
+      CREATE INDEX IF NOT EXISTS idx_subagent_links_turn ON subagent_links(dispatchTurnId);
     `);
         // ── Migrate existing databases: add columns that may not exist ──
         this.migrateColumns();
@@ -210,6 +226,31 @@ class Storage {
     `);
         stmt.run(se.id, se.turnId, se.skillName, se.skillVersion ?? null, se.eventType, se.success ? 1 : 0, se.durationMs);
         // No auto-save here — called in batches within importSessionData
+    }
+    insertSubagentLink(link) {
+        const stmt = this.db.prepare(`
+      INSERT INTO subagent_links (id, sessionId, dispatchTurnId, dispatchToolCallId,
+        subagentSessionId, subagentType, subagentName, dispatchContent,
+        status, subagentTokens, subagentLatencyMs)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `);
+        stmt.run(link.id, link.sessionId, link.dispatchTurnId, link.dispatchToolCallId, link.subagentSessionId, link.subagentType, link.subagentName, link.dispatchContent, link.status, link.subagentTokens, link.subagentLatencyMs);
+    }
+    getSubagentLinks(sessionId) {
+        const rows = this.db.prepare('SELECT * FROM subagent_links WHERE sessionId = ? ORDER BY dispatchTurnId ASC').all(sessionId);
+        return rows.map(r => ({
+            id: r.id,
+            sessionId: r.sessionId,
+            dispatchTurnId: r.dispatchTurnId,
+            dispatchToolCallId: r.dispatchToolCallId,
+            subagentSessionId: r.subagentSessionId,
+            subagentType: r.subagentType,
+            subagentName: r.subagentName,
+            dispatchContent: r.dispatchContent,
+            status: r.status,
+            subagentTokens: r.subagentTokens,
+            subagentLatencyMs: r.subagentLatencyMs,
+        }));
     }
     // ── Batch write ───────────────────────────────────────
     importSessionData(session, turns, toolCalls, skillEvents) {
@@ -300,7 +341,8 @@ class Storage {
         if (!session)
             return null;
         const turns = this.getTurnsWithDetails(id);
-        return { session, turns };
+        const bridges = this.getSubagentLinks(id);
+        return { session, turns, bridges: bridges.length > 0 ? bridges : undefined };
     }
     // ── Delete ─────────────────────────────────────────────
     deleteSession(id) {

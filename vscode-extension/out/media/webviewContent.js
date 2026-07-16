@@ -30,9 +30,11 @@ function getWebviewContent(data, cspSource, nonce, sessionId) {
     const assistantTurns = turns.filter(t => t.role === 'assistant');
     // Chart-only: exclude turns with zero token data (prevents cliff drops)
     const chartTurns = assistantTurns.filter(t => t.totalTokens > 0);
+    const bridges = data.bridges ?? [];
     const turnsJson = (0, shared_1.safeJson)(turns);
     const astJson = (0, shared_1.safeJson)(assistantTurns);
     const chartTurnsJson = (0, shared_1.safeJson)(chartTurns);
+    const bridgesJson = (0, shared_1.safeJson)(bridges);
     const sessionJson = (0, shared_1.safeJson)(session);
     const i18nJson = (0, shared_1.safeJson)(i18nBundle);
     // Generate tab buttons
@@ -589,6 +591,20 @@ function __(key) {
     transition: background 0.15s, color 0.15s;
   }
   .fileops-copy-btn:hover { background: rgba(255,255,255,0.06); color: var(--text); }
+
+  /* ── Subagent lanes (turns tab) ── */
+  .subagent-lane {
+    margin-left: 16px; border-left: 3px solid var(--orange);
+    background: rgba(224,154,107,0.03); border-radius: 0 4px 4px 0;
+    padding: 0; margin-bottom: 2px;
+  }
+  .turn-row-sub {
+    padding: 3px 8px; font-size: 10px;
+    display: flex; justify-content: space-between;
+    border-bottom: 1px solid rgba(62,62,66,0.15);
+    transition: background 0.1s;
+  }
+  .turn-row-sub:hover { background: rgba(255,255,255,0.03); }
 </style>
 </head>
 <body>
@@ -619,6 +635,7 @@ ${(0, fileops_1.renderFileOpsTab)()}
 var turns = ${turnsJson};
 var assistantTurns = ${astJson};
 var chartTurns = ${chartTurnsJson};   // filtered: totalTokens > 0, for charts only
+var bridges = ${bridgesJson};
 var session = ${sessionJson};
 var ctxLimit = ${ctxLimit};
 
