@@ -41,8 +41,6 @@ export class SessionPanelManager {
       return;
     }
 
-    const cloudUrl = getCloudUrl();
-
     const panel = vscode.window.createWebviewPanel(
       'hismartlite.sessionDetail',
       t('detail.panelTitle', data.session.taskId.substring(0, 30)),
@@ -54,6 +52,7 @@ export class SessionPanelManager {
     );
 
     const nonce = getNonce();
+    const cloudUrl = getCloudUrl();
     panel.webview.html = getWebviewContent(data, panel.webview.cspSource, nonce, cloudUrl, sessionId);
 
     panel.onDidDispose(() => {
@@ -69,8 +68,12 @@ export class SessionPanelManager {
           contactEmail: msg.contactEmail || '',
         };
 
-        // Guard: cloud URL not configured (no env var, no config)
-        if (!cloudUrl) {
+        // Re-read cloudUrl inside handler (may differ from panel creation time)
+        const currentCloudUrl = getCloudUrl();
+        console.log('[cannbot] Feedback upload requested, cloudUrl:', currentCloudUrl || '(not configured)');
+
+        if (!currentCloudUrl) {
+          console.log('[cannbot] Feedback upload blocked: no cloud URL configured');
           panel.webview.postMessage({
             type: 'feedbackResult',
             success: false,
@@ -80,7 +83,14 @@ export class SessionPanelManager {
         }
 
         try {
-          const result = await uploadFeedback(this.storage, sessionId, form, cloudUrl);
+          console.log('[cannbot] Starting uploadFeedback...');
+          // Belt-and-suspenders: race upload against a hard 5s wall.
+          // If exportSessionBlob (sql.js WASM) or fetch hangs, this guarantees a response.
+          const result = await Promise.race([
+            uploadFeedback(this.storage, sessionId, form, currentCloudUrl),
+            timeout(5_000, 'Upload timed out after 5s — server did not respond'),
+          ]);
+          console.log('[cannbot] Upload result:', JSON.stringify({ success: result.success, error: result.error }));
           panel.webview.postMessage({
             type: 'feedbackResult',
             success: result.success,
@@ -88,6 +98,7 @@ export class SessionPanelManager {
             error: result.error ? t('feedback.uploadFailed', result.error) : undefined,
           });
         } catch (err) {
+          console.log('[cannbot] Upload threw:', err instanceof Error ? err.message : String(err));
           panel.webview.postMessage({
             type: 'feedbackResult',
             success: false,
@@ -106,6 +117,13 @@ export class SessionPanelManager {
     }
     this.panels.clear();
   }
+}
+
+/** Promise that rejects after `ms` milliseconds with the given message. */
+function timeout(ms: number, message: string): Promise<never> {
+  return new Promise((_, reject) => {
+    setTimeout(() => reject(new Error(message)), ms);
+  });
 }
 
 function getNonce(): string {
