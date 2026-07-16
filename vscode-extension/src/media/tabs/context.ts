@@ -13,7 +13,9 @@ export function renderContextTab(): string {
   <!-- Multi-agent growth chart -->
   <div class="chart-container" style="position:relative">
     <div class="chart-title">📈 ${escHtml(t('context.growthTitle'))}</div>
-    <div id="contextGrowthChart" style="overflow-x:auto;max-height:460px"></div>
+    <div id="contextGrowthChart" style="overflow-x:auto;max-height:460px;position:relative">
+	      <div id="ctxTooltip" class="chart-tooltip"></div>
+	    </div>
     <!-- Legend -->
     <div id="contextLegend" style="display:flex;flex-wrap:wrap;gap:12px;align-items:center;padding:8px 0;font-size:11px"></div>
   </div>
@@ -448,6 +450,50 @@ function renderContextGrowthChart() {
       }
     });
   });
+
+  // ── Hover tooltip on chart dots ──
+  var tooltip = document.getElementById('ctxTooltip');
+  if (tooltip) {
+    container.querySelectorAll('.ctx-chart-dot').forEach(function(dot) {
+      dot.addEventListener('mouseenter', function(e) {
+        var tid = this.getAttribute('data-turn-id');
+        var pdata = null;
+        for (var pi = 0; pi < allPoints.length; pi++) {
+          if (allPoints[pi].turn.id === tid) { pdata = allPoints[pi]; break; }
+        }
+        if (!pdata) return;
+
+        var turn = pdata.turn;
+        var roleLabel = turn.role === 'user' ? 'User' : turn.role === 'assistant' ? 'Assistant' : turn.role;
+        var summary = turn.contentSummary || (turn.content || '').substring(0, 80);
+        if (summary && summary.length >= 80) summary += '...';
+
+        var html = '<div class="chart-tooltip-title">#' + (turn.turnIndex != null ? turn.turnIndex : '?') + ' · ' + esc(roleLabel) + '</div>';
+        html += '<div class="chart-tooltip-tokens">' + fmt(toNumber(turn.totalTokens)) + ' tokens';
+        if (toNumber(turn.inputTokens) > 0) html += ' · in ' + fmt(toNumber(turn.inputTokens));
+        if (toNumber(turn.outputTokens) > 0) html += ' · out ' + fmt(toNumber(turn.outputTokens));
+        html += '</div>';
+        if (summary) html += '<div class="chart-tooltip-summary">' + esc(summary) + '</div>';
+
+        tooltip.innerHTML = html;
+        tooltip.style.display = 'block';
+      });
+
+      dot.addEventListener('mousemove', function(e) {
+        var chartRect = container.getBoundingClientRect();
+        var x = e.clientX - chartRect.left + 14;
+        var y = e.clientY - chartRect.top - 10;
+        if (x + 250 > chartRect.width) x = e.clientX - chartRect.left - 255;
+        if (y < 0) y = e.clientY - chartRect.top + 14;
+        tooltip.style.left = x + 'px';
+        tooltip.style.top = y + 'px';
+      });
+
+      dot.addEventListener('mouseleave', function() {
+        tooltip.style.display = 'none';
+      });
+    });
+  }
 
   // Render legend
   if (legend) {

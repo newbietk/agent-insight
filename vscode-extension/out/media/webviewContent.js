@@ -56,14 +56,14 @@ function __(key) {
 </script>
 <style nonce="${nonce}">
   :root {
-    --bg: #1b1e2b; --card-bg: #212433;
-    --text: #cdd6e0; --text-dim: #7c8496;
-    --border: #353a4e; --accent: #629af0;
-    --green: #5ec49e; --orange: #e09a6b;
-    --blue: #73abed; --purple: #b898e8;
-    --red: #e8676b; --yellow: #dcc87a;
-    --theme-bar-bg: rgba(255,255,255,0.03);
-    --theme-btn-ring: rgba(255,255,255,0.3);
+    --bg: #fafafc; --card-bg: #ffffff;
+    --text: #2c3040; --text-dim: #828ba0;
+    --border: #e0e3eb; --accent: #4d7cde;
+    --green: #2d9f6d; --orange: #c8712a;
+    --blue: #4d7cde; --purple: #7849b8;
+    --red: #d9434a; --yellow: #9d8200;
+    --theme-bar-bg: rgba(0,0,0,0.03);
+    --theme-btn-ring: rgba(77,124,222,0.5);
   }
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body {
@@ -71,7 +71,7 @@ function __(key) {
     background: var(--bg);
     color: var(--text);
     padding: 0 16px 16px 16px;
-    font-size: 13px;
+    font-size: clamp(13px, 0.75vw, 17px);
     line-height: 1.5;
   }
 
@@ -135,7 +135,7 @@ function __(key) {
     background: var(--card-bg); border: 1px solid var(--border);
     border-radius: 6px; padding: 8px 10px;
     max-width: 240px; font-size: 11px; line-height: 1.4;
-    box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+    box-shadow: 0 4px 16px rgba(0,0,0,0.12);
   }
   .chart-tooltip-title { font-weight: 600; color: var(--accent); margin-bottom: 2px; }
   .chart-tooltip-tokens { color: var(--text-dim); }

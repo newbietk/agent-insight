@@ -34,7 +34,7 @@ var THEMES = {
 };
 
 var THEME_KEY = 'kirinai-theme';
-var currentTheme = 'dark';
+var currentTheme = 'light';
 
 function applyTheme(name) {
   name = name || 'dark';
@@ -80,7 +80,7 @@ function buildThemeBar() {
 function initTheme() {
   var saved = null;
   try { saved = localStorage.getItem(THEME_KEY); } catch(e) {}
-  var name = saved && THEMES[saved] ? saved : 'dark';
+  var name = saved && THEMES[saved] ? saved : 'light';
   applyTheme(name);
   buildThemeBar();
 }
