@@ -23,11 +23,13 @@ const zhCN: Record<string, string> = {
   // ── Agent names ──
   'agent.claudeCode': 'Claude Code',
   'agent.opencode': 'OpenCode',
+  'agent.codeAgent': 'CodeAgent 3.0',
   'agent.claudeDesc': '从 .jsonl 会话文件导入',
   'agent.opencodeDesc': '从 OpenCode SQLite 数据库导入',
+  'agent.codeAgentDesc': '导入 CodeAgent 3.0 (~/.cac/projects) 的会话文件',
 
   // ── Status bar ──
-  'statusbar.tooltip': '导入 Claude Code 或 OpenCode 会话进行分析',
+  'statusbar.tooltip': '导入 Claude Code、CodeAgent 或 OpenCode 会话进行分析',
 
   // ── Activation ──
   'activation.failed': 'CANNBot Insight 启动失败: {0}',
@@ -57,6 +59,12 @@ const zhCN: Record<string, string> = {
   'import.claude.skipped': '，跳过 {0} 个',
   'import.claude.noneImported': '未导入任何会话。{0}',
   'import.claude.allEmpty': '所有文件为空或已导入。',
+
+  // ── Import: CodeAgent 3.0 ──
+  'import.codeagent.dirNotFound': '未找到 CodeAgent 3.0 项目目录。期望路径: {0}',
+  'import.codeagent.noFiles': '在 {0} 中未找到 .jsonl 文件',
+  'import.codeagent.progress': '正在导入 CodeAgent 3.0 会话...',
+  'import.codeagent.imported': '已导入 {0} 个 CodeAgent 3.0 会话{1}',
 
   // ── Import: OpenCode ──
   'import.opencode.progress': '正在导入 OpenCode 会话...',

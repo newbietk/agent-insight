@@ -140,6 +140,7 @@ async function handleImport() {
     // ── Step 1: pick agent ──
     const agentChoice = await vscode.window.showQuickPick([
         { label: `$(json) ${(0, i18n_1.t)('agent.claudeCode')}`, value: 'claude', description: (0, i18n_1.t)('agent.claudeDesc') },
+        { label: `$(rocket) ${(0, i18n_1.t)('agent.codeAgent')}`, value: 'codeagent', description: (0, i18n_1.t)('agent.codeAgentDesc') },
         { label: `$(database) ${(0, i18n_1.t)('agent.opencode')}`, value: 'opencode', description: (0, i18n_1.t)('agent.opencodeDesc') },
     ], { placeHolder: (0, i18n_1.t)('import.selectAgent') });
     if (!agentChoice)
@@ -147,8 +148,59 @@ async function handleImport() {
     if (agentChoice.value === 'opencode') {
         await handleOpenCodeImport(storage);
     }
+    else if (agentChoice.value === 'codeagent') {
+        await handleCodeAgentImport(storage);
+    }
     else {
         await handleClaudeImport(storage);
+    }
+}
+// ── CodeAgent 3.0 import ───────────────────────────────────
+async function handleCodeAgentImport(storage) {
+    const cacDir = path.join(os.homedir(), '.cac', 'projects');
+    if (!fs.existsSync(cacDir)) {
+        vscode.window.showInformationMessage((0, i18n_1.t)('import.codeagent.dirNotFound', cacDir));
+        return;
+    }
+    const filePaths = findJsonlFiles(cacDir);
+    if (filePaths.length === 0) {
+        vscode.window.showInformationMessage((0, i18n_1.t)('import.codeagent.noFiles', cacDir));
+        return;
+    }
+    const picked = await pickJsonlFiles(filePaths, (0, i18n_1.t)('agent.codeAgent'));
+    if (!picked || picked.length === 0)
+        return;
+    const { importJsonlFile } = require('./importer');
+    const treeProvider = getTreeProvider();
+    let imported = 0;
+    let skipped = 0;
+    const errors = [];
+    await vscode.window.withProgress({
+        location: vscode.ProgressLocation.Notification,
+        title: (0, i18n_1.t)('import.codeagent.progress'),
+        cancellable: false,
+    }, async () => {
+        for (const p of picked) {
+            try {
+                const result = await importJsonlFile(p, storage);
+                if (result === 'ok')
+                    imported++;
+                else if (result === 'skip')
+                    skipped++;
+                else
+                    errors.push(path.basename(p) + ': ' + result);
+            }
+            catch (e) {
+                errors.push(path.basename(p) + ': ' + e.message);
+            }
+        }
+    });
+    treeProvider.refresh();
+    if (imported > 0) {
+        vscode.window.showInformationMessage((0, i18n_1.t)('import.codeagent.imported', imported, skipped > 0 ? (0, i18n_1.t)('import.claude.skipped', skipped) : ''));
+    }
+    else {
+        vscode.window.showWarningMessage((0, i18n_1.t)('import.claude.noneImported', errors.length > 0 ? errors[0] : (0, i18n_1.t)('import.claude.allEmpty')));
     }
 }
 // ── Claude Code import ─────────────────────────────────────
@@ -165,7 +217,6 @@ async function handleClaudeImport(storage) {
         return;
     let filePaths = [];
     if (choice.value === 'auto') {
-        // ── Step 1: Claude Code (~/.claude/projects) ──
         const claudeDir = getClaudeProjectsDir();
         const claudeFiles = fs.existsSync(claudeDir) ? findJsonlFiles(claudeDir) : [];
         if (claudeFiles.length > 0) {
@@ -173,16 +224,8 @@ async function handleClaudeImport(storage) {
             if (picked)
                 filePaths.push(...picked);
         }
-        // ── Step 2: CodeAgent 3.0 (~/.cac/projects) ──
-        const cacDir = path.join(os.homedir(), '.cac', 'projects');
-        const cacFiles = fs.existsSync(cacDir) ? findJsonlFiles(cacDir) : [];
-        if (cacFiles.length > 0) {
-            const picked = await pickJsonlFiles(cacFiles, (0, i18n_1.t)('import.claude.codeAgentLabel'));
-            if (picked)
-                filePaths.push(...picked);
-        }
         if (filePaths.length === 0) {
-            vscode.window.showInformationMessage((0, i18n_1.t)('import.claude.noFilesInDir', [claudeDir, cacDir].filter(d => fs.existsSync(d)).join(', ') || '~/.claude/projects, ~/.cac/projects'));
+            vscode.window.showInformationMessage((0, i18n_1.t)('import.claude.noFilesInDir', claudeDir));
             return;
         }
     }

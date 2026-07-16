@@ -23,11 +23,13 @@ const en: Record<string, string> = {
   // ── Agent names ──
   'agent.claudeCode': 'Claude Code',
   'agent.opencode': 'OpenCode',
+  'agent.codeAgent': 'CodeAgent 3.0',
   'agent.claudeDesc': 'Import from .jsonl session files',
   'agent.opencodeDesc': 'Import from OpenCode SQLite database',
+  'agent.codeAgentDesc': 'Import from CodeAgent 3.0 ~/.cac/projects session files',
 
   // ── Status bar ──
-  'statusbar.tooltip': 'Import a Claude Code or OpenCode session for analysis',
+  'statusbar.tooltip': 'Import a Claude Code, CodeAgent, or OpenCode session for analysis',
 
   // ── Activation ──
   'activation.failed': 'CANNBot Insight failed to start: {0}',
@@ -57,6 +59,12 @@ const en: Record<string, string> = {
   'import.claude.skipped': ', {0} skipped',
   'import.claude.noneImported': 'No sessions imported. {0}',
   'import.claude.allEmpty': 'All files were empty or already imported.',
+
+  // ── Import: CodeAgent 3.0 ──
+  'import.codeagent.dirNotFound': 'CodeAgent 3.0 project directory not found. Expected: {0}',
+  'import.codeagent.noFiles': 'No .jsonl files found in {0}',
+  'import.codeagent.progress': 'Importing CodeAgent 3.0 sessions...',
+  'import.codeagent.imported': 'Imported {0} CodeAgent 3.0 session(s){1}',
 
   // ── Import: OpenCode ──
   'import.opencode.progress': 'Importing OpenCode sessions...',

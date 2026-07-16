@@ -122,6 +122,7 @@ async function handleImport(): Promise<void> {
   const agentChoice = await vscode.window.showQuickPick(
     [
       { label: `$(json) ${t('agent.claudeCode')}`, value: 'claude', description: t('agent.claudeDesc') },
+      { label: `$(rocket) ${t('agent.codeAgent')}`, value: 'codeagent', description: t('agent.codeAgentDesc') },
       { label: `$(database) ${t('agent.opencode')}`, value: 'opencode', description: t('agent.opencodeDesc') },
     ],
     { placeHolder: t('import.selectAgent') }
@@ -130,8 +131,68 @@ async function handleImport(): Promise<void> {
 
   if (agentChoice.value === 'opencode') {
     await handleOpenCodeImport(storage);
+  } else if (agentChoice.value === 'codeagent') {
+    await handleCodeAgentImport(storage);
   } else {
     await handleClaudeImport(storage);
+  }
+}
+
+// ── CodeAgent 3.0 import ───────────────────────────────────
+
+async function handleCodeAgentImport(storage: import('./storage/db').Storage): Promise<void> {
+  const cacDir = path.join(os.homedir(), '.cac', 'projects');
+  if (!fs.existsSync(cacDir)) {
+    vscode.window.showInformationMessage(t('import.codeagent.dirNotFound', cacDir));
+    return;
+  }
+
+  const filePaths = findJsonlFiles(cacDir);
+  if (filePaths.length === 0) {
+    vscode.window.showInformationMessage(t('import.codeagent.noFiles', cacDir));
+    return;
+  }
+
+  const picked = await pickJsonlFiles(filePaths, t('agent.codeAgent'));
+  if (!picked || picked.length === 0) return;
+
+  const { importJsonlFile } = require('./importer');
+  const treeProvider = getTreeProvider();
+
+  let imported = 0;
+  let skipped = 0;
+  const errors: string[] = [];
+
+  await vscode.window.withProgress(
+    {
+      location: vscode.ProgressLocation.Notification,
+      title: t('import.codeagent.progress'),
+      cancellable: false,
+    },
+    async () => {
+      for (const p of picked) {
+        try {
+          const result = await importJsonlFile(p, storage);
+          if (result === 'ok') imported++;
+          else if (result === 'skip') skipped++;
+          else errors.push(path.basename(p) + ': ' + result);
+        } catch (e: any) {
+          errors.push(path.basename(p) + ': ' + e.message);
+        }
+      }
+    }
+  );
+
+  treeProvider.refresh();
+
+  if (imported > 0) {
+    vscode.window.showInformationMessage(
+      t('import.codeagent.imported', imported, skipped > 0 ? t('import.claude.skipped', skipped) : '')
+    );
+  } else {
+    vscode.window.showWarningMessage(
+      t('import.claude.noneImported', errors.length > 0 ? errors[0] : t('import.claude.allEmpty'))
+    );
   }
 }
 
@@ -152,7 +213,6 @@ async function handleClaudeImport(storage: import('./storage/db').Storage): Prom
   let filePaths: string[] = [];
 
   if (choice.value === 'auto') {
-    // ── Step 1: Claude Code (~/.claude/projects) ──
     const claudeDir = getClaudeProjectsDir();
     const claudeFiles = fs.existsSync(claudeDir) ? findJsonlFiles(claudeDir) : [];
     if (claudeFiles.length > 0) {
@@ -160,17 +220,9 @@ async function handleClaudeImport(storage: import('./storage/db').Storage): Prom
       if (picked) filePaths.push(...picked);
     }
 
-    // ── Step 2: CodeAgent 3.0 (~/.cac/projects) ──
-    const cacDir = path.join(os.homedir(), '.cac', 'projects');
-    const cacFiles = fs.existsSync(cacDir) ? findJsonlFiles(cacDir) : [];
-    if (cacFiles.length > 0) {
-      const picked = await pickJsonlFiles(cacFiles, t('import.claude.codeAgentLabel'));
-      if (picked) filePaths.push(...picked);
-    }
-
     if (filePaths.length === 0) {
       vscode.window.showInformationMessage(
-        t('import.claude.noFilesInDir', [claudeDir, cacDir].filter(d => fs.existsSync(d)).join(', ') || '~/.claude/projects, ~/.cac/projects')
+        t('import.claude.noFilesInDir', claudeDir)
       );
       return;
     }
