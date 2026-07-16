@@ -547,8 +547,8 @@ function findJsonlFiles(dirPath) {
             }
         }
     }
-    catch {
-        // Skip directories we can't read
+    catch (e) {
+        console.error(`[cannbot] findJsonlFiles error in ${dirPath}: ${e.code || e.message}`);
     }
     return results;
 }
