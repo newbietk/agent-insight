@@ -72,6 +72,10 @@ const en: Record<string, string> = {
   'import.opencode.imported': 'Imported {0} OpenCode session(s){1}',
   'import.opencode.allEmpty': 'All sessions were empty or already imported.',
 
+  // ── Import: Claude / CodeAgent picker labels ──
+  'import.claude.codeLabel': 'Claude Code',
+  'import.claude.codeAgentLabel': 'CodeAgent 3.0',
+
   // ── Import: file picker ──
   'import.picker.selectFiles': 'Found {0} session(s). Select to import.',
   'import.picker.selectFilesEsc': 'Found {0} session(s). Select to import (or press Esc to cancel).',

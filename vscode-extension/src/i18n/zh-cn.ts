@@ -72,6 +72,10 @@ const zhCN: Record<string, string> = {
   'import.opencode.imported': '已导入 {0} 个 OpenCode 会话{1}',
   'import.opencode.allEmpty': '所有会话为空或已导入。',
 
+  // ── Import: Claude / CodeAgent picker labels ──
+  'import.claude.codeLabel': 'Claude Code',
+  'import.claude.codeAgentLabel': 'CodeAgent 3.0',
+
   // ── Import: file picker ──
   'import.picker.selectFiles': '找到 {0} 个会话，选择要导入的。',
   'import.picker.selectFilesEsc': '找到 {0} 个会话，选择要导入的（按 Esc 取消）。',

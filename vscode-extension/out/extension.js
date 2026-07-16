@@ -165,25 +165,26 @@ async function handleClaudeImport(storage) {
         return;
     let filePaths = [];
     if (choice.value === 'auto') {
-        // Scan Claude Code (~/.claude/projects) and CodeAgent 3.0 (~/.cac/projects)
-        const scanDirs = [
-            getClaudeProjectsDir(),
-            path.join(os.homedir(), '.cac', 'projects'),
-        ];
-        for (const dir of scanDirs) {
-            if (fs.existsSync(dir)) {
-                const found = findJsonlFiles(dir);
-                filePaths.push(...found);
-            }
+        // ── Step 1: Claude Code (~/.claude/projects) ──
+        const claudeDir = getClaudeProjectsDir();
+        const claudeFiles = fs.existsSync(claudeDir) ? findJsonlFiles(claudeDir) : [];
+        if (claudeFiles.length > 0) {
+            const picked = await pickJsonlFiles(claudeFiles, (0, i18n_1.t)('import.claude.codeLabel'));
+            if (picked)
+                filePaths.push(...picked);
+        }
+        // ── Step 2: CodeAgent 3.0 (~/.cac/projects) ──
+        const cacDir = path.join(os.homedir(), '.cac', 'projects');
+        const cacFiles = fs.existsSync(cacDir) ? findJsonlFiles(cacDir) : [];
+        if (cacFiles.length > 0) {
+            const picked = await pickJsonlFiles(cacFiles, (0, i18n_1.t)('import.claude.codeAgentLabel'));
+            if (picked)
+                filePaths.push(...picked);
         }
         if (filePaths.length === 0) {
-            vscode.window.showInformationMessage((0, i18n_1.t)('import.claude.noFilesInDir', scanDirs.filter(d => fs.existsSync(d)).join(', ') || '~/.claude/projects, ~/.cac/projects'));
+            vscode.window.showInformationMessage((0, i18n_1.t)('import.claude.noFilesInDir', [claudeDir, cacDir].filter(d => fs.existsSync(d)).join(', ') || '~/.claude/projects, ~/.cac/projects'));
             return;
         }
-        const picked = await pickJsonlFiles(filePaths);
-        if (!picked || picked.length === 0)
-            return;
-        filePaths = picked;
     }
     else if (choice.value === 'file') {
         const uris = await vscode.window.showOpenDialog({
@@ -211,7 +212,7 @@ async function handleClaudeImport(storage) {
             vscode.window.showInformationMessage((0, i18n_1.t)('import.claude.noFilesSelected'));
             return;
         }
-        const picked = await pickJsonlFiles(filePaths);
+        const picked = await pickJsonlFiles(filePaths, 'Directory');
         if (!picked || picked.length === 0)
             return;
         filePaths = picked;
@@ -508,28 +509,74 @@ function findJsonlFiles(dirPath) {
     }
     return results;
 }
-async function pickJsonlFiles(filePaths) {
-    const items = filePaths.map(f => ({
-        label: path.basename(f),
-        description: path.dirname(f),
-        picked: true,
-    }));
+async function pickJsonlFiles(filePaths, sourceLabel) {
+    // Extract first user query from each file for display
+    const items = filePaths.map(f => {
+        const query = extractFirstUserQuery(f);
+        return {
+            label: query || path.basename(f),
+            description: `${sourceLabel} · ${path.basename(f)}`,
+            detail: path.dirname(f),
+            filePath: f,
+            picked: true,
+        };
+    });
+    if (filePaths.length === 0)
+        return [];
     const MAX_DIRECT_PICK = 20;
     if (filePaths.length <= MAX_DIRECT_PICK) {
         const selected = await vscode.window.showQuickPick(items, {
             canPickMany: true,
+            matchOnDescription: true,
+            matchOnDetail: true,
             placeHolder: (0, i18n_1.t)('import.picker.selectFiles', filePaths.length),
         });
         if (!selected)
             return undefined;
-        return selected.map(s => path.join(s.description || '', s.label));
+        return selected.map(s => s.filePath);
     }
     const selected = await vscode.window.showQuickPick(items, {
         canPickMany: true,
+        matchOnDescription: true,
+        matchOnDetail: true,
         placeHolder: (0, i18n_1.t)('import.picker.selectFilesEsc', filePaths.length),
     });
     if (!selected)
         return undefined;
-    return selected.map(s => path.join(s.description || '', s.label));
+    return selected.map(s => s.filePath);
+}
+// ── JSONL first-query extraction ──────────────────────────
+function extractFirstUserQuery(filePath) {
+    try {
+        const content = fs.readFileSync(filePath, 'utf-8');
+        if (!content.trim())
+            return null;
+        const lines = content.split('\n');
+        for (const line of lines) {
+            if (!line.trim())
+                continue;
+            try {
+                const obj = JSON.parse(line);
+                if (obj.type === 'user' && obj.message) {
+                    const msg = obj.message;
+                    if (typeof msg.content === 'string') {
+                        return msg.content.substring(0, 120);
+                    }
+                    if (Array.isArray(msg.content)) {
+                        for (const block of msg.content) {
+                            if (block.type === 'text' && block.text) {
+                                return block.text.substring(0, 120);
+                            }
+                        }
+                    }
+                }
+            }
+            catch { /* skip malformed line */ }
+        }
+        return null;
+    }
+    catch {
+        return null;
+    }
 }
 //# sourceMappingURL=extension.js.map

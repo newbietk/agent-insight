@@ -67,6 +67,9 @@ const en = {
     'import.opencode.dbNotFound': 'OpenCode database not found at default locations.',
     'import.opencode.imported': 'Imported {0} OpenCode session(s){1}',
     'import.opencode.allEmpty': 'All sessions were empty or already imported.',
+    // ── Import: Claude / CodeAgent picker labels ──
+    'import.claude.codeLabel': 'Claude Code',
+    'import.claude.codeAgentLabel': 'CodeAgent 3.0',
     // ── Import: file picker ──
     'import.picker.selectFiles': 'Found {0} session(s). Select to import.',
     'import.picker.selectFilesEsc': 'Found {0} session(s). Select to import (or press Esc to cancel).',
