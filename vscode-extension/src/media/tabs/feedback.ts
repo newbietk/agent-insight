@@ -47,6 +47,16 @@ export function renderFeedbackTab(): string {
           ${escHtml(t('feedback.submit'))}
         </button>
       </div>
+
+      <div id="fbProgress" style="display:none; margin-top:14px;">
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">
+          <div style="flex:1;height:6px;background:var(--border);border-radius:3px;overflow:hidden">
+            <div id="fbProgressBar" style="height:100%;width:0%;background:var(--accent);border-radius:3px;transition:width 0.3s ease"></div>
+          </div>
+          <span id="fbProgressPct" style="font-size:10px;color:var(--text-dim);font-variant-numeric:tabular-nums;min-width:32px;text-align:right">0%</span>
+        </div>
+        <div id="fbProgressStep" style="font-size:11px;color:var(--text-dim);text-align:center"></div>
+      </div>
     </div>
   </div>
 </div>`;
@@ -81,6 +91,54 @@ function initFeedbackTab() {
     setTimeout(function() { toast.classList.remove('show'); }, 4000);
   }
 
+  // ── Progress bar helpers ──
+  var _fbTimeout = null;
+  var _fbProgressTimer = null;
+
+  function showFbProgress(show) {
+    var el = document.getElementById('fbProgress');
+    if (el) el.style.display = show ? 'block' : 'none';
+  }
+
+  function updateFbProgress(pct, stepText) {
+    var bar = document.getElementById('fbProgressBar');
+    var pctEl = document.getElementById('fbProgressPct');
+    var stepEl = document.getElementById('fbProgressStep');
+    if (bar) bar.style.width = pct + '%';
+    if (pctEl) pctEl.textContent = pct + '%';
+    if (stepEl && stepText) stepEl.textContent = stepText;
+  }
+
+  function startFakeProgress() {
+    // Simulate: 0→60% over first 2.5s (export phase), then 60→90% (upload phase)
+    var start = Date.now();
+    _fbProgressTimer = setInterval(function() {
+      var elapsed = (Date.now() - start) / 1000;
+      var pct;
+      if (elapsed < 2.5) {
+        pct = Math.min(60, Math.round((elapsed / 2.5) * 60));
+        updateFbProgress(pct, __('feedback.progressExport'));
+      } else {
+        pct = 60 + Math.min(30, Math.round(((elapsed - 2.5) / 2.5) * 30));
+        updateFbProgress(pct, __('feedback.progressUpload'));
+      }
+    }, 150);
+  }
+
+  function stopFakeProgress() {
+    if (_fbProgressTimer) { clearInterval(_fbProgressTimer); _fbProgressTimer = null; }
+  }
+
+  function resetUploadUI() {
+    clearTimeout(_fbTimeout);
+    _fbTimeout = null;
+    stopFakeProgress();
+    showFbProgress(false);
+    submitBtn.disabled = false;
+    submitBtn.textContent = __('feedback.submit');
+    submitBtn.style.opacity = '1';
+  }
+
   submitBtn.addEventListener('click', function() {
     var issueType = document.getElementById('fbIssueType').value;
     var problemDescription = document.getElementById('fbProblem').value.trim();
@@ -96,6 +154,21 @@ function initFeedbackTab() {
     submitBtn.textContent = __('feedback.uploading');
     submitBtn.style.opacity = '0.6';
 
+    // Show progress bar and start animation
+    showFbProgress(true);
+    updateFbProgress(0, __('feedback.progressExport'));
+    startFakeProgress();
+
+    // 5s client-side timeout — recovers UI even if extension handler hangs
+    _fbTimeout = setTimeout(function() {
+      stopFakeProgress();
+      showFbProgress(false);
+      submitBtn.disabled = false;
+      submitBtn.textContent = __('feedback.submit');
+      submitBtn.style.opacity = '1';
+      showFeedbackToast(__('feedback.uploadTimeout'), true);
+    }, 5000);
+
     vscode.postMessage({
       type: 'submitFeedback',
       issueType: issueType,
@@ -109,10 +182,13 @@ function initFeedbackTab() {
   window.addEventListener('message', function(e) {
     var msg = e.data;
     if (msg && msg.type === 'feedbackResult') {
-      submitBtn.disabled = false;
-      submitBtn.textContent = __('feedback.submit');
-      submitBtn.style.opacity = '1';
+      clearTimeout(_fbTimeout);
+      _fbTimeout = null;
+      stopFakeProgress();
+
       if (msg.success) {
+        updateFbProgress(100, __('feedback.progressDone'));
+        setTimeout(function() { showFbProgress(false); }, 800);
         showFeedbackToast(__('feedback.uploaded', msg.submissionId || 'N/A'), false);
         // Clear form
         var problem = document.getElementById('fbProblem');
@@ -120,8 +196,13 @@ function initFeedbackTab() {
         if (problem) problem.value = '';
         if (help) help.value = '';
       } else {
+        showFbProgress(false);
         showFeedbackToast(msg.error || __('feedback.uploadFailed', 'Unknown error'), true);
       }
+
+      submitBtn.disabled = false;
+      submitBtn.textContent = __('feedback.submit');
+      submitBtn.style.opacity = '1';
     }
   });
 }

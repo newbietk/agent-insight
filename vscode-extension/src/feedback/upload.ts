@@ -133,7 +133,7 @@ export async function uploadFeedback(
   const url = cloudUrl.replace(/\/+$/, '') + '/api/submissions';
   try {
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 15_000);
+    const timeout = setTimeout(() => controller.abort(), 5_000);
     const res = await fetch(url, {
       method: 'POST',
       body: formData,
@@ -155,7 +155,7 @@ export async function uploadFeedback(
     };
   } catch (err: any) {
     if (err?.name === 'AbortError') {
-      return { success: false, error: `Request timed out after 15s — cloud server unreachable at ${url}` };
+      return { success: false, error: `Request timed out after 5s — cloud server unreachable at ${url}` };
     }
     const msg = err instanceof Error ? err.message : String(err);
     return { success: false, error: msg };

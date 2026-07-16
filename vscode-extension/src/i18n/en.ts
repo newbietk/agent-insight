@@ -208,6 +208,10 @@ const en: Record<string, string> = {
   'feedback.uploaded': 'Uploaded! Submission ID: {0}',
   'feedback.uploadFailed': 'Upload failed: {0}',
   'feedback.uploadDisabled': 'Upload is currently unavailable. Please contact the plugin administrator.',
+  'feedback.progressExport': 'Exporting session data...',
+  'feedback.progressUpload': 'Uploading to cloud...',
+  'feedback.progressDone': 'Done!',
+  'feedback.uploadTimeout': 'Upload timed out — server did not respond within 5 seconds. Please check your network and try again.',
   'feedback.dragHint': 'Drag me · Click to send feedback',
 
   // ── Import errors ──
