@@ -78,7 +78,7 @@ async function activate(context) {
         const { SessionTreeDataProvider } = require('./views/sessionTree');
         const treeProvider = new SessionTreeDataProvider(_storage);
         _treeProvider = treeProvider;
-        context.subscriptions.push(vscode.window.createTreeView('kirinai.sessions', {
+        context.subscriptions.push(vscode.window.createTreeView('hismartlite.sessions', {
             treeDataProvider: treeProvider,
             showCollapseAll: false,
         }));
@@ -98,17 +98,17 @@ async function activate(context) {
         _scheduler.start();
     }
     // ── Register commands ──
-    context.subscriptions.push(vscode.commands.registerCommand('kirinai.import', () => handleImport()), vscode.commands.registerCommand('kirinai.refreshSessions', () => {
+    context.subscriptions.push(vscode.commands.registerCommand('hismartlite.import', () => handleImport()), vscode.commands.registerCommand('hismartlite.refreshSessions', () => {
         if (_treeProvider)
             _treeProvider.refresh();
-    }), vscode.commands.registerCommand('kirinai.openSession', (sessionId) => {
+    }), vscode.commands.registerCommand('hismartlite.openSession', (sessionId) => {
         const pm = _panelManager;
         if (pm)
             pm.show(context, sessionId);
-    }), vscode.commands.registerCommand('kirinai.deleteSession', (item) => handleDelete(item)), vscode.commands.registerCommand('kirinai.syncSession', (item) => handleSyncSession(item)), vscode.commands.registerCommand('kirinai.syncAll', () => handleSyncAll()));
+    }), vscode.commands.registerCommand('hismartlite.deleteSession', (item) => handleDelete(item)), vscode.commands.registerCommand('hismartlite.syncSession', (item) => handleSyncSession(item)), vscode.commands.registerCommand('hismartlite.syncAll', () => handleSyncAll()));
     // ── Status bar ──
     const statusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 100);
-    statusBarItem.command = 'kirinai.import';
+    statusBarItem.command = 'hismartlite.import';
     statusBarItem.text = '$(graph) KirinAI';
     statusBarItem.tooltip = (0, i18n_1.t)('statusbar.tooltip');
     statusBarItem.show();
@@ -529,7 +529,7 @@ async function handleSyncAll() {
 }
 // ── File Discovery Helpers ──────────────────────────────────
 function getClaudeProjectsDir() {
-    const configPath = vscode.workspace.getConfiguration('kirinai').get('claudeProjectsPath');
+    const configPath = vscode.workspace.getConfiguration('hismartlite').get('claudeProjectsPath');
     if (configPath) {
         return configPath.replace(/^~/, os.homedir());
     }

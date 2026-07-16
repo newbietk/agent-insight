@@ -28,7 +28,7 @@ export class SyncScheduler {
   start(): void {
     this.stop();
 
-    const config = vscode.workspace.getConfiguration('kirinai.autoSync');
+    const config = vscode.workspace.getConfiguration('hismartlite.autoSync');
     const enabled = config.get<boolean>('enabled', false);
     if (!enabled) return;
 
@@ -41,7 +41,7 @@ export class SyncScheduler {
     // Watch for config changes to restart with new interval
     this.disposables.push(
       vscode.workspace.onDidChangeConfiguration(e => {
-        if (e.affectsConfiguration('kirinai.autoSync')) {
+        if (e.affectsConfiguration('hismartlite.autoSync')) {
           this.start(); // re-read config and restart
         }
       }),

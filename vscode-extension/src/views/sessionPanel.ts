@@ -22,10 +22,10 @@ export class SessionPanelManager {
       return;
     }
 
-    const cloudUrl = vscode.workspace.getConfiguration('kirinai').get<string>('cloudUrl') || 'http://localhost:21026';
+    const cloudUrl = vscode.workspace.getConfiguration('hismartlite').get<string>('cloudUrl') || 'http://localhost:21026';
 
     const panel = vscode.window.createWebviewPanel(
-      'kirinai.sessionDetail',
+      'hismartlite.sessionDetail',
       t('detail.panelTitle', data.session.taskId.substring(0, 30)),
       vscode.ViewColumn.One,
       {

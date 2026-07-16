@@ -101,18 +101,18 @@ class SessionListPanelProvider {
         switch (msg.type) {
             case 'openSession':
                 if (msg.sessionId) {
-                    vscode.commands.executeCommand('kirinai.openSession', msg.sessionId);
+                    vscode.commands.executeCommand('hismartlite.openSession', msg.sessionId);
                 }
                 break;
             case 'deleteSession':
                 if (msg.sessionId) {
-                    vscode.commands.executeCommand('kirinai.deleteSession', {
+                    vscode.commands.executeCommand('hismartlite.deleteSession', {
                         session: { id: msg.sessionId, taskId: '' },
                     });
                 }
                 break;
             case 'import':
-                vscode.commands.executeCommand('kirinai.import');
+                vscode.commands.executeCommand('hismartlite.import');
                 break;
         }
     }

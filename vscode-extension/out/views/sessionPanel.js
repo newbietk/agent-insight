@@ -55,8 +55,8 @@ class SessionPanelManager {
             vscode.window.showErrorMessage((0, i18n_1.t)('session.notFound', sessionId));
             return;
         }
-        const cloudUrl = vscode.workspace.getConfiguration('kirinai').get('cloudUrl') || 'http://localhost:21026';
-        const panel = vscode.window.createWebviewPanel('kirinai.sessionDetail', (0, i18n_1.t)('detail.panelTitle', data.session.taskId.substring(0, 30)), vscode.ViewColumn.One, {
+        const cloudUrl = vscode.workspace.getConfiguration('hismartlite').get('cloudUrl') || 'http://localhost:21026';
+        const panel = vscode.window.createWebviewPanel('hismartlite.sessionDetail', (0, i18n_1.t)('detail.panelTitle', data.session.taskId.substring(0, 30)), vscode.ViewColumn.One, {
             enableScripts: true,
             retainContextWhenHidden: true,
         });

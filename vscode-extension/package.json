@@ -2,8 +2,8 @@
   "name": "cannbot-insight",
   "displayName": "%displayName%",
   "description": "%description%",
-  "version": "0.6.0",
-  "publisher": "kirinai",
+  "version": "0.7.0",
+  "publisher": "hismartlite",
   "repository": {
     "type": "git",
     "url": "https://github.com/newbietk/agent-insight"
@@ -16,44 +16,44 @@
     "Visualization"
   ],
   "activationEvents": [
-    "onCommand:kirinai.import",
-    "onCommand:kirinai.refreshSessions",
-    "onCommand:kirinai.openSession",
-    "onCommand:kirinai.deleteSession",
-    "onCommand:kirinai.syncSession",
-    "onCommand:kirinai.syncAll",
-    "onView:kirinai.sessions"
+    "onCommand:hismartlite.import",
+    "onCommand:hismartlite.refreshSessions",
+    "onCommand:hismartlite.openSession",
+    "onCommand:hismartlite.deleteSession",
+    "onCommand:hismartlite.syncSession",
+    "onCommand:hismartlite.syncAll",
+    "onView:hismartlite.sessions"
   ],
   "main": "./out/extension.js",
   "contributes": {
     "commands": [
       {
-        "command": "kirinai.import",
+        "command": "hismartlite.import",
         "title": "%command.import.title%",
         "icon": "$(cloud-download)"
       },
       {
-        "command": "kirinai.refreshSessions",
+        "command": "hismartlite.refreshSessions",
         "title": "%command.refreshSessions.title%",
         "icon": "$(refresh)"
       },
       {
-        "command": "kirinai.openSession",
+        "command": "hismartlite.openSession",
         "title": "%command.openSession.title%",
         "icon": "$(eye)"
       },
       {
-        "command": "kirinai.deleteSession",
+        "command": "hismartlite.deleteSession",
         "title": "%command.deleteSession.title%",
         "icon": "$(trash)"
       },
       {
-        "command": "kirinai.syncSession",
+        "command": "hismartlite.syncSession",
         "title": "%command.syncSession.title%",
         "icon": "$(sync)"
       },
       {
-        "command": "kirinai.syncAll",
+        "command": "hismartlite.syncAll",
         "title": "%command.syncAll.title%",
         "icon": "$(sync~spin)"
       }
@@ -61,16 +61,16 @@
     "viewsContainers": {
       "activitybar": [
         {
-          "id": "kirinai",
+          "id": "hismartlite",
           "title": "%viewContainer.title%",
           "icon": "$(graph)"
         }
       ]
     },
     "views": {
-      "kirinai": [
+      "hismartlite": [
         {
-          "id": "kirinai.sessions",
+          "id": "hismartlite.sessions",
           "name": "%view.sessions.name%"
         }
       ]
@@ -78,57 +78,57 @@
     "menus": {
       "view/title": [
         {
-          "command": "kirinai.import",
-          "when": "view == kirinai.sessions",
+          "command": "hismartlite.import",
+          "when": "view == hismartlite.sessions",
           "group": "navigation"
         },
         {
-          "command": "kirinai.refreshSessions",
-          "when": "view == kirinai.sessions",
+          "command": "hismartlite.refreshSessions",
+          "when": "view == hismartlite.sessions",
           "group": "navigation"
         },
         {
-          "command": "kirinai.syncAll",
-          "when": "view == kirinai.sessions",
+          "command": "hismartlite.syncAll",
+          "when": "view == hismartlite.sessions",
           "group": "navigation"
         }
       ],
       "view/item/context": [
         {
-          "command": "kirinai.openSession",
-          "when": "view == kirinai.sessions",
+          "command": "hismartlite.openSession",
+          "when": "view == hismartlite.sessions",
           "group": "inline"
         },
         {
-          "command": "kirinai.syncSession",
-          "when": "view == kirinai.sessions",
+          "command": "hismartlite.syncSession",
+          "when": "view == hismartlite.sessions",
           "group": "inline"
         },
         {
-          "command": "kirinai.deleteSession",
-          "when": "view == kirinai.sessions"
+          "command": "hismartlite.deleteSession",
+          "when": "view == hismartlite.sessions"
         }
       ]
     },
     "configuration": {
       "title": "%config.title%",
       "properties": {
-        "kirinai.claudeProjectsPath": {
+        "hismartlite.claudeProjectsPath": {
           "type": "string",
           "default": "",
           "description": "%config.claudeProjectsPath.description%"
         },
-        "kirinai.cloudUrl": {
+        "hismartlite.cloudUrl": {
           "type": "string",
           "default": "http://localhost:21026",
           "description": "%config.cloudUrl.description%"
         },
-        "kirinai.autoSync.enabled": {
+        "hismartlite.autoSync.enabled": {
           "type": "boolean",
           "default": false,
           "description": "%config.autoSync.enabled.description%"
         },
-        "kirinai.autoSync.intervalMs": {
+        "hismartlite.autoSync.intervalMs": {
           "type": "number",
           "default": 30000,
           "description": "%config.autoSync.intervalMs.description%"

@@ -56,7 +56,7 @@ class SessionTreeDataProvider {
         if (sessions.length === 0) {
             const empty = new vscode.TreeItem((0, i18n_1.t)('session.empty'), vscode.TreeItemCollapsibleState.None);
             empty.description = (0, i18n_1.t)('session.emptyHint');
-            empty.command = { command: 'kirinai.import', title: (0, i18n_1.t)('common.import') };
+            empty.command = { command: 'hismartlite.import', title: (0, i18n_1.t)('common.import') };
             empty.iconPath = new vscode.ThemeIcon('info');
             return [empty];
         }
@@ -102,7 +102,7 @@ class SessionTreeItem extends vscode.TreeItem {
             : new vscode.ThemeIcon('json');
         this.contextValue = 'session';
         this.command = {
-            command: 'kirinai.openSession',
+            command: 'hismartlite.openSession',
             title: (0, i18n_1.t)('session.openDetail'),
             arguments: [session.id],
         };

@@ -24,7 +24,7 @@ export class SessionTreeDataProvider implements vscode.TreeDataProvider<SessionT
     if (sessions.length === 0) {
       const empty = new vscode.TreeItem(t('session.empty'), vscode.TreeItemCollapsibleState.None);
       empty.description = t('session.emptyHint');
-      empty.command = { command: 'kirinai.import', title: t('common.import') };
+      empty.command = { command: 'hismartlite.import', title: t('common.import') };
       empty.iconPath = new vscode.ThemeIcon('info');
       return [empty as unknown as SessionTreeItem];
     }
@@ -74,7 +74,7 @@ export class SessionTreeItem extends vscode.TreeItem {
     this.contextValue = 'session';
 
     this.command = {
-      command: 'kirinai.openSession',
+      command: 'hismartlite.openSession',
       title: t('session.openDetail'),
       arguments: [session.id],
     };
