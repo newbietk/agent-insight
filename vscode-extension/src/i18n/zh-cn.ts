@@ -72,6 +72,15 @@ const zhCN: Record<string, string> = {
   'import.codeagent.noFiles': '在 {0} 中未找到 .jsonl 文件',
   'import.codeagent.progress': '正在导入 CodeAgent 3.0 会话...',
   'import.codeagent.imported': '已导入 {0} 个 CodeAgent 3.0 会话{1}',
+  'import.codeagent.importMethod': '如何导入 CodeAgent 3.0 会话？',
+  'import.codeagent.fileOption': '$(file) 导入 .jsonl 文件',
+  'import.codeagent.fileDesc': '选择 CodeAgent 3.0 .jsonl 会话文件',
+  'import.codeagent.dirOption': '$(folder) 扫描目录',
+  'import.codeagent.dirDesc': '扫描目录中的 CodeAgent 3.0 .jsonl 文件',
+  'import.codeagent.fileFilter': 'CodeAgent 3.0 日志',
+  'import.codeagent.selectFile': '选择 CodeAgent 3.0 JSONL 文件',
+  'import.codeagent.selectDir': '选择要扫描的目录',
+  'import.codeagent.allEmpty': '所有文件为空或已导入。',
 
   // ── Import: OpenCode ──
   'import.opencode.progress': '正在导入 OpenCode 会话...',

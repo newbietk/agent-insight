@@ -295,7 +295,7 @@ function renderAuditFlowchartSVG(flow) {
 
   // SVG string
   var svg = '<div style="overflow-x:auto"><svg width="' + svgW + '" height="' + svgH + '" viewBox="0 0 ' + svgW + ' ' + svgH + '" style="display:block;min-width:' + svgW + 'px">';
-  svg += '<rect width="' + svgW + '" height="' + svgH + '" fill="' + (typeof currentTheme !== 'undefined' && currentTheme === 'light' ? '#fafafc' : '#1b1e2b') + '" rx="6"/>';
+  svg += '<rect width="' + svgW + '" height="' + svgH + '" fill="#fafafc" rx="6"/>';
 
   // Arrow marker
   svg += '<defs><marker id="auditArrow" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto"><path d="M0,0 L8,3 L0,6 Z" fill="#888"/></marker></defs>';

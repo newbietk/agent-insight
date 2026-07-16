@@ -89,11 +89,11 @@ function drawTokenCompositionChart() {
     maxVal = Math.max(maxVal, toNumber(bt.inputTokens) + toNumber(bt.outputTokens) + toNumber(bt.cacheReadTokens) + toNumber(bt.cacheWriteTokens));
   }
 
-  ctx.fillStyle = currentTheme === 'light' ? '#fafafc' : '#1e1e1e';
+  ctx.fillStyle = '#fafafc';
   ctx.fillRect(0, 0, W, H);
 
   // Grid
-  ctx.strokeStyle = currentTheme === 'light' ? 'rgba(0,0,0,0.06)' : 'rgba(255,255,255,0.06)';
+  ctx.strokeStyle = 'rgba(0,0,0,0.06)';
   ctx.lineWidth = 1;
   for (var gi = 0; gi <= 4; gi++) {
     var gy = pad.top + ph * (1 - gi/4);

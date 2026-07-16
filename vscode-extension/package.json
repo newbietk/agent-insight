@@ -2,7 +2,7 @@
   "name": "cannbot-insight",
   "displayName": "%displayName%",
   "description": "%description%",
-  "version": "1.0.3",
+  "version": "1.0.4",
   "publisher": "hismartlite",
   "repository": {
     "type": "git",
@@ -21,7 +21,6 @@
     "onCommand:hismartlite.openSession",
     "onCommand:hismartlite.deleteSession",
     "onCommand:hismartlite.syncSession",
-    "onCommand:hismartlite.syncAll",
     "onView:hismartlite.sessions"
   ],
   "main": "./out/extension.js",
@@ -51,11 +50,6 @@
         "command": "hismartlite.syncSession",
         "title": "%command.syncSession.title%",
         "icon": "$(sync)"
-      },
-      {
-        "command": "hismartlite.syncAll",
-        "title": "%command.syncAll.title%",
-        "icon": "$(sync~spin)"
       }
     ],
     "viewsContainers": {
@@ -84,11 +78,6 @@
         },
         {
           "command": "hismartlite.refreshSessions",
-          "when": "view == hismartlite.sessions",
-          "group": "navigation"
-        },
-        {
-          "command": "hismartlite.syncAll",
           "when": "view == hismartlite.sessions",
           "group": "navigation"
         }
@@ -122,16 +111,6 @@
           "type": "string",
           "default": "",
           "description": "%config.cloudUrl.description%"
-        },
-        "hismartlite.autoSync.enabled": {
-          "type": "boolean",
-          "default": false,
-          "description": "%config.autoSync.enabled.description%"
-        },
-        "hismartlite.autoSync.intervalMs": {
-          "type": "number",
-          "default": 30000,
-          "description": "%config.autoSync.intervalMs.description%"
         }
       }
     }

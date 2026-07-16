@@ -60,6 +60,10 @@ class SyncScheduler {
     /** Start polling. Reads interval from config. Safe to call multiple times. */
     start() {
         this.stop();
+        // Dispose old config listeners before creating new ones (prevents leak on restart)
+        for (const d of this.disposables)
+            d.dispose();
+        this.disposables = [];
         const config = vscode.workspace.getConfiguration('hismartlite.autoSync');
         const enabled = config.get('enabled', false);
         if (!enabled)

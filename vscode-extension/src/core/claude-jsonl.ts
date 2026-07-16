@@ -103,8 +103,18 @@ function deriveSessionId(filePath: string): string {
   return basename;
 }
 
+/** Maximum JSONL file size before warning (50 MB). */
+const MAX_JSONL_SIZE_BYTES = 50 * 1024 * 1024;
+
 function parseJsonlLines(filePath: string): ClaudeJsonlLine[] {
   try {
+    // Guard against OOM on very large session files
+    let stat: import('fs').Stats;
+    try { stat = fs.statSync(filePath); } catch { return []; }
+    if (stat.size > MAX_JSONL_SIZE_BYTES) {
+      console.warn(`claude-jsonl: large file (${(stat.size / 1024 / 1024).toFixed(1)} MB), may cause memory pressure: ${filePath}`);
+    }
+
     const content = fs.readFileSync(filePath, 'utf-8');
     if (!content.trim()) return [];
     const lines = content.split('\n').filter(l => l.trim());
@@ -137,15 +147,21 @@ function collectAllToolResults(lines: ClaudeJsonlLine[]): Map<string, string> {
   return resultMap;
 }
 
-function collectJsonlFiles(dirPath: string): string[] {
+function collectJsonlFiles(dirPath: string, visited?: Set<string>): string[] {
   const results: string[] = [];
   try {
+    // Symlink cycle guard
+    const real = fs.realpathSync(dirPath);
+    if (!visited) visited = new Set();
+    if (visited.has(real)) return results;
+    visited.add(real);
+
     const entries = fs.readdirSync(dirPath, { withFileTypes: true });
     for (const entry of entries) {
       const full = path.join(dirPath, entry.name);
       if (entry.isDirectory()) {
         if (entry.name === 'subagents') continue;
-        results.push(...collectJsonlFiles(full));
+        results.push(...collectJsonlFiles(full, visited));
       } else if (entry.name.endsWith('.jsonl')) {
         results.push(full);
       }
@@ -210,15 +226,21 @@ export function listSessions(dirPath: string): SessionListItem[] {
   return result.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
 }
 
-function findSessionFile(dirPath: string, sessionId: string): string | null {
+function findSessionFile(dirPath: string, sessionId: string, visited?: Set<string>): string | null {
   const directPath = path.join(dirPath, sessionId + '.jsonl');
   if (fs.existsSync(directPath) && fs.statSync(directPath).isFile()) return directPath;
 
   try {
+    // Symlink cycle guard
+    const real = fs.realpathSync(dirPath);
+    if (!visited) visited = new Set();
+    if (visited.has(real)) return null;
+    visited.add(real);
+
     const entries = fs.readdirSync(dirPath, { withFileTypes: true });
     for (const entry of entries) {
       if (entry.isDirectory() && entry.name !== 'subagents') {
-        const found = findSessionFile(path.join(dirPath, entry.name), sessionId);
+        const found = findSessionFile(path.join(dirPath, entry.name), sessionId, visited);
         if (found) return found;
       }
     }

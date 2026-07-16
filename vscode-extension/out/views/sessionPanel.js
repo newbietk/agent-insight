@@ -40,6 +40,8 @@ const i18n_1 = require("../i18n");
 class SessionPanelManager {
     storage;
     panels = new Map();
+    activeTabs = new Map();
+    refreshBusy = new Set();
     constructor(storage) {
         this.storage = storage;
     }
@@ -59,11 +61,47 @@ class SessionPanelManager {
             retainContextWhenHidden: true,
         });
         const nonce = getNonce();
-        panel.webview.html = (0, webviewContent_1.getWebviewContent)(data, panel.webview.cspSource, nonce, sessionId);
+        const initialTab = this.activeTabs.get(sessionId) || 'overview';
+        panel.webview.html = (0, webviewContent_1.getWebviewContent)(data, panel.webview.cspSource, nonce, sessionId, initialTab);
+        // Handle messages from webview: tab tracking and manual/auto refresh
+        panel.webview.onDidReceiveMessage(msg => {
+            if (msg.type === 'tabChange' && msg.tab) {
+                this.activeTabs.set(sessionId, msg.tab);
+            }
+            if (msg.type === 'requestRefresh') {
+                this.handleRefresh(sessionId, panel);
+            }
+        });
         panel.onDidDispose(() => {
             this.panels.delete(sessionId);
         });
         this.panels.set(sessionId, panel);
+    }
+    async handleRefresh(sessionId, panel) {
+        if (this.refreshBusy.has(sessionId))
+            return;
+        this.refreshBusy.add(sessionId);
+        try {
+            const { syncSession } = require('../importer');
+            const result = await syncSession(this.storage, sessionId);
+            if (result.newTurnCount > 0) {
+                const data = this.storage.getSessionDetail(sessionId);
+                if (data) {
+                    const nonce = getNonce();
+                    const initialTab = this.activeTabs.get(sessionId) || 'overview';
+                    panel.webview.html = (0, webviewContent_1.getWebviewContent)(data, panel.webview.cspSource, nonce, sessionId, initialTab, {
+                        newTurnCount: result.newTurnCount,
+                        totalTurnCount: result.totalTurnCount,
+                    });
+                }
+            }
+        }
+        catch {
+            // silent in background
+        }
+        finally {
+            this.refreshBusy.delete(sessionId);
+        }
     }
     disposeAll() {
         for (const panel of this.panels.values()) {

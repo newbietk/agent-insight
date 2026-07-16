@@ -6,12 +6,9 @@
   "command.openSession.title": "打开会话详情",
   "command.deleteSession.title": "删除会话",
   "command.syncSession.title": "从数据源同步",
-  "command.syncAll.title": "同步全部会话",
   "viewContainer.title": "CANNBot Insight",
   "view.sessions.name": "会话列表",
   "config.title": "CANNBot Insight",
   "config.claudeProjectsPath.description": "Claude Code 项目目录路径（如 ~/.claude/projects）。留空则自动检测。",
-  "config.cloudUrl.description": "CANNBot Cloud 后端地址，用于上传反馈和会话数据。",
-  "config.autoSync.enabled.description": "当源文件发生变化时，自动同步已导入的会话。",
-  "config.autoSync.intervalMs.description": "自动同步检查的时间间隔，单位为毫秒（默认: 30000 = 30秒）。"
+  "config.cloudUrl.description": "CANNBot Cloud 后端地址，用于上传反馈和会话数据。"
 }

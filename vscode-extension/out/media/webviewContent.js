@@ -4,7 +4,6 @@ exports.getWebviewContent = getWebviewContent;
 const context_window_config_1 = require("../core/context-window-config");
 const i18n_1 = require("../i18n");
 const shared_1 = require("./shared");
-const theme_1 = require("./theme");
 const nav_1 = require("./nav");
 const overview_1 = require("./tabs/overview");
 const turns_1 = require("./tabs/turns");
@@ -23,7 +22,7 @@ const TAB_DEFS = [
     { key: 'skills', label: (0, i18n_1.t)('detail.tabSkills'), icon: '🧩' },
     { key: 'fileops', label: (0, i18n_1.t)('detail.tabFileOps'), icon: '📁' },
 ];
-function getWebviewContent(data, cspSource, nonce, sessionId) {
+function getWebviewContent(data, cspSource, nonce, sessionId, initialTab, syncResult) {
     const { session, turns } = data;
     const ctxLimit = (0, context_window_config_1.getContextWindowLimit)(session.model);
     const i18nBundle = (0, i18n_1.getBundle)();
@@ -70,39 +69,37 @@ function __(key) {
   }
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body {
+    position: relative;
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-    background: linear-gradient(180deg, #f5f6fa 0%, #edeff5 100%);
+    background: linear-gradient(180deg, #dfe1e9 0%, #eef0f5 12px, #f5f6fa 32px, #edeff5 100%);
     color: var(--text);
-    padding: 0 16px 16px 16px;
+    padding: 12px 16px 16px 16px;
     font-size: clamp(13px, 0.75vw, 17px);
     line-height: 1.5;
   }
+  .refresh-bar { position: absolute; top: 10px; right: 16px; z-index: 10; }
+  .refresh-btn {
+    display: flex; align-items: center; gap: 6px;
+    padding: 3px 12px; border-radius: 14px;
+    border: 1px solid var(--border); background: var(--card-bg);
+    color: var(--text-dim); font-size: 12px; cursor: pointer;
+    transition: color 0.15s, border-color 0.15s; user-select: none;
+  }
+  .refresh-btn:hover { color: var(--accent); border-color: var(--accent); }
+  .refresh-btn.manual { color: var(--accent); border-color: var(--accent); }
+  .refresh-icon { font-size: 14px; line-height: 1; }
+  .refresh-countdown { font-variant-numeric: tabular-nums; min-width: 28px; text-align: right; }
 
-  .theme-bar {
-    display: flex; align-items: center; gap: 8px;
-    padding: 6px 16px; margin: 0 -16px 12px -16px;
-    background: var(--theme-bar-bg);
-    border-bottom: 1px solid var(--border);
-    font-size: 11px;
+  .sync-toast {
+    position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%);
+    padding: 8px 20px; border-radius: 8px;
+    background: var(--card-bg); border: 1px solid var(--green);
+    color: var(--text); font-size: 13px; font-weight: 500;
+    box-shadow: 0 2px 12px rgba(0,0,0,0.12);
+    z-index: 100; opacity: 0; transition: opacity 0.3s;
+    pointer-events: none;
   }
-  .theme-bar-label { color: var(--text-dim); font-weight: 500; }
-  .theme-toggle {
-    display: flex; align-items: center; gap: 0;
-    background: var(--card-bg); border: 1px solid var(--border);
-    border-radius: 6px; overflow: hidden;
-  }
-  .theme-btn {
-    display: flex; align-items: center; gap: 5px;
-    padding: 4px 10px; cursor: pointer; border: none;
-    background: transparent; color: var(--text-dim);
-    font-size: 11px; font-family: inherit;
-    transition: background 0.15s, color 0.15s;
-    outline: none; white-space: nowrap;
-  }
-  .theme-btn:hover { color: var(--text); }
-  .theme-btn.active { background: var(--accent); color: #fff; }
-  .theme-btn:first-child { border-right: 1px solid var(--border); }
-
+  .sync-toast.show { opacity: 1; }
   .tabs { display: flex; gap: 2px; margin-bottom: 16px; border-bottom: 1px solid var(--border); flex-wrap: wrap; }
   .tab {
     padding: 8px 14px; cursor: pointer;
@@ -609,8 +606,11 @@ function __(key) {
 </style>
 </head>
 <body>
-<div class="theme-bar" id="themeBar">
-  <span class="theme-bar-label">${(0, shared_1.escHtml)((0, i18n_1.t)('detail.theme'))}:</span>
+<div class="refresh-bar">
+  <button class="refresh-btn" id="refreshBtn" title="点击手动刷新，自动 30s 刷新一次">
+    <span class="refresh-icon">&#x21bb;</span>
+    <span class="refresh-countdown" id="refreshCountdown">30s</span>
+  </button>
 </div>
 <div class="info-row">
   <div class="info-item"><span>${(0, shared_1.escHtml)((0, i18n_1.t)('detail.taskId'))}: </span><span>${(0, shared_1.escHtml)(session.taskId)}</span></div>
@@ -639,12 +639,70 @@ var chartTurns = ${chartTurnsJson};   // filtered: totalTokens > 0, for charts o
 var bridges = ${bridgesJson};
 var session = ${sessionJson};
 var ctxLimit = ${ctxLimit};
+var __initialTab = '${initialTab || 'overview'}';
+
+// ── VS Code API ──
+var vscode = acquireVsCodeApi();
+
+// ── Refresh countdown ──
+var REFRESH_SEC = 30;
+var refreshTimer = REFRESH_SEC;
+var refreshIntervalId = null;
+
+function updateCountdown() {
+  var el = document.getElementById('refreshCountdown');
+  if (el) el.textContent = refreshTimer + 's';
+}
+
+function resetCountdown() {
+  refreshTimer = REFRESH_SEC;
+  updateCountdown();
+  var btn = document.getElementById('refreshBtn');
+  if (btn) btn.classList.remove('manual');
+}
+
+function doRefresh() {
+  resetCountdown();
+  vscode.postMessage({ type: 'requestRefresh' });
+}
+
+function startCountdown() {
+  if (refreshIntervalId) clearInterval(refreshIntervalId);
+  updateCountdown();
+  refreshIntervalId = setInterval(function() {
+    refreshTimer--;
+    updateCountdown();
+    if (refreshTimer <= 0) {
+      doRefresh();
+    }
+  }, 1000);
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+  var btn = document.getElementById('refreshBtn');
+  if (btn) {
+    btn.addEventListener('click', function() {
+      resetCountdown();
+      btn.classList.add('manual');
+      vscode.postMessage({ type: 'requestRefresh' });
+    });
+  }
+  startCountdown();
+});
+
+// ── Sync result toast ──
+(function() {
+  var toast = document.getElementById('syncToast');
+  if (toast) {
+    requestAnimationFrame(function() {
+      toast.classList.add('show');
+      setTimeout(function() { toast.classList.remove('show'); }, 4000);
+    });
+  }
+})();
 
 // ── Shared Runtime ──
 ${(0, shared_1.sharedRuntimeJS)()}
-
-// ── Theme Engine ──
-${(0, theme_1.themeRuntimeJS)()}
 
 // ── Navigation Bus ──
 ${(0, nav_1.navRuntimeJS)()}
@@ -657,6 +715,9 @@ function switchTab(name) {
   if (btn) btn.classList.add('active');
   var panel = document.getElementById('tab-' + name);
   if (panel) panel.classList.add('active');
+
+  // Notify extension of tab change for state preservation across refreshes
+  vscode.postMessage({ type: 'tabChange', tab: name });
 
   // Redraw charts when switching to their tabs
   setTimeout(function() {
@@ -691,8 +752,11 @@ ${(0, fileops_1.renderFileOpsJS)()}
 
 // ── Initialize All ──
 function initAll() {
-  initTheme();
   initTabs();
+  // Restore last active tab if set (preserved across auto-refresh)
+  if (__initialTab && __initialTab !== 'overview') {
+    switchTab(__initialTab);
+  }
   // Render initial state for all visible tabs
   renderOverviewCards();
   renderTurnCards(null);
@@ -706,6 +770,7 @@ if (document.readyState === 'loading') {
 }
 
 </script>
+${syncResult ? `<div class="sync-toast" id="syncToast">已更新：新增 ${syncResult.newTurnCount} 轮次，共 ${syncResult.totalTurnCount} 轮次</div>` : ''}
 </body>
 </html>`;
 }

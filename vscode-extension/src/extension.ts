@@ -1,15 +1,11 @@
 import * as vscode from 'vscode';
-import * as path from 'node:path';
-import * as os from 'node:os';
-import * as fs from 'node:fs';
 import { t } from './i18n';
-import { SyncScheduler } from './sync/scheduler';
+import { setRefreshCallback, handleClaudeImport, handleCodeAgentImport, handleOpenCodeImport } from './commands/import';
 
 // ── Lazy references (initialized on first use, not at module load) ──
 let _storage: import('./storage/db').Storage | null = null;
 let _treeProvider: import('./views/sessionTree').SessionTreeDataProvider | null = null;
 let _panelManager: import('./views/sessionPanel').SessionPanelManager | null = null;
-let _scheduler: SyncScheduler | null = null;
 let _activationError: string | null = null;
 
 function getStorage(): import('./storage/db').Storage {
@@ -36,7 +32,7 @@ export async function activate(context: vscode.ExtensionContext) {
     vscode.window.showErrorMessage(t('activation.failed', _activationError));
   }
 
-  // ── Session list: TreeView (reliable, always works) ──
+  // ── Session list: TreeView ──
   if (_storage) {
     const { SessionTreeDataProvider } = require('./views/sessionTree');
     const treeProvider = new SessionTreeDataProvider(_storage);
@@ -56,11 +52,8 @@ export async function activate(context: vscode.ExtensionContext) {
       console.error('[KirinAI] Panel manager init error:', err);
     }
 
-    // Auto-sync scheduler
-    _scheduler = new SyncScheduler(_storage, () => {
-      if (_treeProvider) _treeProvider.refresh();
-    });
-    _scheduler.start();
+    // Wire refresh callback for import commands
+    setRefreshCallback(() => { if (_treeProvider) _treeProvider.refresh(); });
   }
 
   // ── Register commands ──
@@ -79,9 +72,6 @@ export async function activate(context: vscode.ExtensionContext) {
     vscode.commands.registerCommand('hismartlite.syncSession', (item?: { session: { id: string; taskId: string } }) =>
       handleSyncSession(item)
     ),
-    vscode.commands.registerCommand('hismartlite.syncAll', () =>
-      handleSyncAll()
-    ),
   );
 
   // ── Status bar ──
@@ -98,12 +88,11 @@ export async function activate(context: vscode.ExtensionContext) {
 }
 
 export function deactivate() {
-  if (_scheduler) _scheduler.dispose();
   if (_panelManager) _panelManager.disposeAll();
   if (_storage) _storage.close();
 }
 
-// ── Command Handlers ────────────────────────────────────────
+// ── Shared helpers ───────────────────────────────────────────
 
 function ensureReady(): boolean {
   if (_activationError) {
@@ -113,37 +102,14 @@ function ensureReady(): boolean {
   return true;
 }
 
-/** Shared result reporting for all agent import handlers. */
-function reportImportResult(
-  imported: number,
-  skipped: number,
-  errors: string[],
-  agentI18nPrefix: string,
-): void {
-  getTreeProvider().refresh();
-
-  if (imported > 0) {
-    vscode.window.showInformationMessage(
-      t(`${agentI18nPrefix}.imported`, imported,
-        skipped > 0 ? t('import.claude.skipped', skipped) : ''),
-    );
-  } else if (skipped > 0 || errors.length > 0) {
-    const specificEmptyKey = `${agentI18nPrefix}.allEmpty`;
-    const emptyMsg = t(specificEmptyKey);
-    // If agent-specific allEmpty doesn't exist, t() returns the raw key → fall back to claude
-    const fallback = emptyMsg !== specificEmptyKey ? emptyMsg : t('import.claude.allEmpty');
-    vscode.window.showWarningMessage(
-      t('import.claude.noneImported', errors.length > 0 ? errors[0] : fallback),
-    );
-  }
-}
+// ── Main import orchestrator ─────────────────────────────────
 
 async function handleImport(): Promise<void> {
   if (!ensureReady()) return;
 
   const storage = getStorage();
 
-  // ── Step 1: pick mode ──
+  // Step 1: pick mode
   const modeChoice = await vscode.window.showQuickPick(
     [
       { label: t('import.mode.autoLabel'), value: 'auto', description: t('import.mode.autoDesc') },
@@ -154,7 +120,7 @@ async function handleImport(): Promise<void> {
   if (!modeChoice) return;
   const mode = modeChoice.value as 'auto' | 'manual';
 
-  // ── Step 2: pick agent ──
+  // Step 2: pick agent
   const agentChoice = await vscode.window.showQuickPick(
     [
       { label: `$(json) ${t('agent.claudeCode')}`, value: 'claude', description: t('agent.claudeDesc') },
@@ -174,318 +140,7 @@ async function handleImport(): Promise<void> {
   }
 }
 
-// ── CodeAgent 3.0 import ───────────────────────────────────
-
-async function handleCodeAgentImport(
-  storage: import('./storage/db').Storage,
-  mode: 'auto' | 'manual',
-): Promise<void> {
-  let filePaths: string[] = [];
-
-  if (mode === 'auto') {
-    const cacDir = path.join(os.homedir(), '.cac', 'projects');
-    if (!fs.existsSync(cacDir)) {
-      vscode.window.showInformationMessage(t('import.codeagent.dirNotFound', cacDir));
-      return;
-    }
-    filePaths = findJsonlFiles(cacDir).filter(f => path.basename(f) !== 'obs.jsonl');
-    if (filePaths.length === 0) {
-      vscode.window.showInformationMessage(t('import.codeagent.noFiles', cacDir));
-      return;
-    }
-  } else {
-    // Manual: file or dir sub-choice
-    const subChoice = await vscode.window.showQuickPick(
-      [
-        { label: t('import.fileOption'), value: 'file', description: t('import.fileDesc') },
-        { label: t('import.dirOption'), value: 'dir', description: t('import.dirDesc') },
-      ],
-      { placeHolder: t('import.claudeImportMethod') },
-    );
-    if (!subChoice) return;
-
-    if (subChoice.value === 'file') {
-      const uris = await vscode.window.showOpenDialog({
-        canSelectFiles: true,
-        canSelectFolders: false,
-        canSelectMany: true,
-        filters: { [t('import.claude.fileFilter')]: ['jsonl'], [t('import.claude.allFiles')]: ['*'] },
-        title: t('import.claude.selectFile'),
-      });
-      if (!uris || uris.length === 0) return;
-      filePaths = uris.map(u => u.fsPath);
-    } else {
-      const uris = await vscode.window.showOpenDialog({
-        canSelectFiles: false,
-        canSelectFolders: true,
-        canSelectMany: false,
-        title: t('import.claude.selectDir'),
-      });
-      if (!uris || uris.length === 0) return;
-      filePaths = findJsonlFiles(uris[0].fsPath).filter(f => path.basename(f) !== 'obs.jsonl');
-      if (filePaths.length === 0) {
-        vscode.window.showInformationMessage(t('import.claude.noFilesSelected'));
-        return;
-      }
-    }
-  }
-
-  // Shared picker
-  const picked = await pickJsonlFiles(filePaths, t('agent.codeAgent'));
-  if (picked === undefined) return;
-  if (!picked || picked.length === 0) return;
-
-  // Shared import loop
-  const { importJsonlFile } = require('./importer');
-  let imported = 0;
-  let skipped = 0;
-  const errors: string[] = [];
-
-  await vscode.window.withProgress(
-    {
-      location: vscode.ProgressLocation.Notification,
-      title: t('import.codeagent.progress'),
-      cancellable: false,
-    },
-    async () => {
-      for (const p of picked) {
-        try {
-          const result = await importJsonlFile(storage, p);
-          if (result) imported++;
-          else skipped++;
-        } catch (e: any) {
-          errors.push(path.basename(p) + ': ' + e.message);
-        }
-      }
-    },
-  );
-
-  reportImportResult(imported, skipped, errors, 'import.codeagent');
-}
-
-// ── Claude Code import ─────────────────────────────────────
-
-async function handleClaudeImport(
-  storage: import('./storage/db').Storage,
-  mode: 'auto' | 'manual',
-): Promise<void> {
-  let filePaths: string[] = [];
-
-  if (mode === 'auto') {
-    const claudeDir = getClaudeProjectsDir();
-    if (!fs.existsSync(claudeDir)) {
-      vscode.window.showInformationMessage(t('import.claude.dirNotFound', claudeDir));
-      return;
-    }
-    filePaths = findJsonlFiles(claudeDir);
-    if (filePaths.length === 0) {
-      vscode.window.showInformationMessage(t('import.claude.noFilesInDir', claudeDir));
-      return;
-    }
-  } else {
-    // Manual: file or dir sub-choice
-    const subChoice = await vscode.window.showQuickPick(
-      [
-        { label: t('import.fileOption'), value: 'file', description: t('import.fileDesc') },
-        { label: t('import.dirOption'), value: 'dir', description: t('import.dirDesc') },
-      ],
-      { placeHolder: t('import.claudeImportMethod') },
-    );
-    if (!subChoice) return;
-
-    if (subChoice.value === 'file') {
-      const uris = await vscode.window.showOpenDialog({
-        canSelectFiles: true,
-        canSelectFolders: false,
-        canSelectMany: true,
-        filters: { [t('import.claude.fileFilter')]: ['jsonl'], [t('import.claude.allFiles')]: ['*'] },
-        title: t('import.claude.selectFile'),
-      });
-      if (!uris || uris.length === 0) return;
-      filePaths = uris.map(u => u.fsPath);
-    } else {
-      const uris = await vscode.window.showOpenDialog({
-        canSelectFiles: false,
-        canSelectFolders: true,
-        canSelectMany: false,
-        title: t('import.claude.selectDir'),
-      });
-      if (!uris || uris.length === 0) return;
-      filePaths = findJsonlFiles(uris[0].fsPath);
-      if (filePaths.length === 0) {
-        vscode.window.showInformationMessage(t('import.claude.noFilesSelected'));
-        return;
-      }
-    }
-  }
-
-  // Shared picker
-  const picked = await pickJsonlFiles(filePaths, t('import.claude.codeLabel'));
-  if (picked === undefined) return;
-  if (!picked || picked.length === 0) return;
-
-  // Shared import loop
-  const { importJsonlFile } = require('./importer');
-  let imported = 0;
-  let skipped = 0;
-  const errors: string[] = [];
-
-  await vscode.window.withProgress(
-    {
-      location: vscode.ProgressLocation.Notification,
-      title: t('import.claude.progress'),
-      cancellable: true,
-    },
-    async (progress, token) => {
-      for (let i = 0; i < picked.length; i++) {
-        if (token.isCancellationRequested) break;
-
-        const filePath = picked[i];
-        const fileName = path.basename(filePath);
-        progress.report({ message: fileName, increment: 100 / picked.length });
-
-        try {
-          const result = importJsonlFile(storage, filePath);
-          if (result) imported++;
-          else skipped++;
-        } catch (err) {
-          const message = err instanceof Error ? err.message : String(err);
-          errors.push(`${fileName}: ${message}`);
-          skipped++;
-        }
-      }
-    },
-  );
-
-  reportImportResult(imported, skipped, errors, 'import.claude');
-}
-
-// ── OpenCode import ────────────────────────────────────────
-
-async function handleOpenCodeImport(
-  storage: import('./storage/db').Storage,
-  mode: 'auto' | 'manual',
-): Promise<void> {
-  let dbPath: string | null;
-
-  if (mode === 'auto') {
-    dbPath = tryAutoFindOpenCodeDb();
-    if (!dbPath) {
-      vscode.window.showInformationMessage(t('import.opencode.dbNotFound'));
-      return;
-    }
-  } else {
-    dbPath = await browseForDbPath();
-    if (!dbPath) return;
-  }
-
-  const { listOpenCodeSessions, importOpenCodeSession } = require('./importer');
-
-  let sessions: Array<{ id: string; label: string | null; model: string | null }>;
-  try {
-    sessions = await listOpenCodeSessions(dbPath);
-  } catch (err) {
-    vscode.window.showErrorMessage(t('import.opencode.readFailed', err instanceof Error ? err.message : String(err)));
-    return;
-  }
-
-  if (sessions.length === 0) {
-    vscode.window.showInformationMessage(t('import.opencode.noSessions'));
-    return;
-  }
-
-  const items = sessions.map(s => ({
-    label: s.label?.substring(0, 60) || s.id.substring(0, 8),
-    description: s.model ? `${s.model}` : t('import.opencode.unknownModel'),
-    detail: t('import.opencode.sessionId', s.id.substring(0, 12)),
-    id: s.id,
-  }));
-
-  const selected = await vscode.window.showQuickPick(items, {
-    canPickMany: true,
-    placeHolder: t('import.opencode.selectSessions', sessions.length),
-  });
-  if (!selected || selected.length === 0) return;
-
-  let imported = 0;
-  let skipped = 0;
-  const errors: string[] = [];
-
-  await vscode.window.withProgress(
-    {
-      location: vscode.ProgressLocation.Notification,
-      title: t('import.opencode.progress'),
-      cancellable: true,
-    },
-    async (progress, token) => {
-      for (let i = 0; i < selected.length; i++) {
-        if (token.isCancellationRequested) break;
-
-        const session = selected[i];
-        progress.report({
-          message: session.label?.substring(0, 40) || session.id.substring(0, 8),
-          increment: 100 / selected.length,
-        });
-
-        try {
-          const result = await importOpenCodeSession(storage, dbPath!, session.id);
-          if (result) {
-            imported++;
-          } else {
-            skipped++;
-          }
-        } catch (err) {
-          const message = err instanceof Error ? err.message : String(err);
-          errors.push(`${session.id}: ${message}`);
-          skipped++;
-        }
-      }
-    }
-  );
-
-  reportImportResult(imported, skipped, errors, 'import.opencode');
-}
-
-/** Scan known paths for the OpenCode database. Returns first match or null. */
-function tryAutoFindOpenCodeDb(): string | null {
-  const autoPaths = getOpenCodeDbPaths();
-  for (const p of autoPaths) {
-    if (fs.existsSync(p)) return p;
-  }
-  return null;
-}
-
-/** Show native file dialog to browse for the OpenCode database. */
-async function browseForDbPath(): Promise<string | null> {
-  const uris = await vscode.window.showOpenDialog({
-    canSelectFiles: true,
-    canSelectFolders: false,
-    canSelectMany: false,
-    filters: { [t('import.opencode.sqliteFilter')]: ['db'], [t('import.claude.allFiles')]: ['*'] },
-    title: t('import.opencode.selectDb'),
-  });
-  if (!uris || uris.length === 0) return null;
-  return uris[0].fsPath;
-}
-
-function getOpenCodeDbPaths(): string[] {
-  const home = os.homedir();
-  const localAppData = process.env.LOCALAPPDATA || path.join(home, 'AppData', 'Local');
-  const appData = process.env.APPDATA || path.join(home, 'AppData', 'Roaming');
-
-  if (process.platform === 'win32') {
-    return [
-      // Rust dirs::data_dir() → APPDATA (Roaming), not LOCALAPPDATA
-      path.join(appData, 'opencode', 'opencode.db'),
-      path.join(localAppData, 'opencode', 'opencode.db'),
-      path.join(home, '.local', 'share', 'opencode', 'opencode.db'),
-    ];
-  }
-  if (process.platform === 'darwin') {
-    return [path.join(home, 'Library', 'Application Support', 'opencode', 'opencode.db')];
-  }
-  return [path.join(home, '.local', 'share', 'opencode', 'opencode.db')];
-}
+// ── Delete ───────────────────────────────────────────────────
 
 async function handleDelete(item: { session: { id: string; taskId: string } }): Promise<void> {
   if (!ensureReady()) return;
@@ -507,7 +162,7 @@ async function handleDelete(item: { session: { id: string; taskId: string } }): 
   vscode.window.showInformationMessage(t('delete.deleted', session.taskId));
 }
 
-// ── Sync ───────────────────────────────────────────────────
+// ── Sync ─────────────────────────────────────────────────────
 
 async function handleSyncSession(item?: { session: { id: string; taskId: string } }): Promise<void> {
   if (!ensureReady()) return;
@@ -520,7 +175,6 @@ async function handleSyncSession(item?: { session: { id: string; taskId: string 
   if (item?.session?.id) {
     sessionId = item.session.id;
   } else {
-    // Pick from sessions that have a sourcePath
     const sessions = storage.listSessions().filter(s => s.sourcePath);
     if (sessions.length === 0) {
       vscode.window.showInformationMessage(t('sync.noSourceSessions'));
@@ -537,6 +191,26 @@ async function handleSyncSession(item?: { session: { id: string; taskId: string 
     );
     if (!pick) return;
     sessionId = pick.sessionId;
+  }
+
+  // Large file gate: warn before syncing oversized source files
+  const session = storage.getSession(sessionId!);
+  if (session?.sourcePath) {
+    const fs = require('node:fs');
+    let stat: { size: number } | null = null;
+    try { stat = fs.statSync(session.sourcePath); } catch { /* file gone, proceed */ }
+    if (stat) {
+      const sizeMB = stat.size / (1024 * 1024);
+      if (sizeMB > 50) {
+        const choice = await vscode.window.showWarningMessage(
+          `源文件大小为 ${sizeMB.toFixed(1)} MB（超过 50MB），同步可能导致内存占用过高、VS Code 卡顿甚至崩溃。是否继续？`,
+          { modal: true },
+          '继续同步',
+          '取消',
+        );
+        if (choice !== '继续同步') return;
+      }
+    }
   }
 
   await vscode.window.withProgress(
@@ -558,162 +232,8 @@ async function handleSyncSession(item?: { session: { id: string; taskId: string 
     }
   );
 
-  const tp = _treeProvider;
-  if (tp) tp.refresh();
-  const pm = _panelManager;
-  if (pm) pm.disposeAll();
+  if (_treeProvider) _treeProvider.refresh();
+  if (_panelManager) _panelManager.disposeAll();
 }
 
-async function handleSyncAll(): Promise<void> {
-  if (!ensureReady()) return;
 
-  const storage = getStorage();
-  const { syncSession } = require('./importer');
-
-  const sessions = storage.listSessions().filter(s => s.sourcePath);
-  if (sessions.length === 0) {
-    vscode.window.showInformationMessage(t('sync.noSourceSessions'));
-    return;
-  }
-
-  let synced = 0;
-  let newTurns = 0;
-  const errors: string[] = [];
-
-  await vscode.window.withProgress(
-    {
-      location: vscode.ProgressLocation.Notification,
-      title: t('sync.syncingAll', sessions.length),
-      cancellable: true,
-    },
-    async (progress, token) => {
-      for (let i = 0; i < sessions.length; i++) {
-        if (token.isCancellationRequested) break;
-        const s = sessions[i];
-        progress.report({ message: s.taskId, increment: 100 / sessions.length });
-        try {
-          const result = await syncSession(storage, s.id);
-          synced++;
-          newTurns += result.newTurnCount;
-        } catch (err) {
-          const message = err instanceof Error ? err.message : String(err);
-          errors.push(`${s.taskId}: ${message}`);
-        }
-      }
-    }
-  );
-
-  const tp = _treeProvider;
-  if (tp) tp.refresh();
-
-  if (newTurns > 0) {
-    vscode.window.showInformationMessage(
-      t('sync.allDone', newTurns, synced, sessions.length)
-    );
-  } else if (synced > 0) {
-    vscode.window.showInformationMessage(t('sync.allUpToDate'));
-  }
-
-  if (errors.length > 0) {
-    const detail = errors.length <= 3 ? errors.join('\n') : `${errors.slice(0, 3).join('\n')}\n... +${errors.length - 3} more`;
-    vscode.window.showWarningMessage(t('sync.partialErrors', errors.length, detail));
-  }
-}
-
-// ── File Discovery Helpers ──────────────────────────────────
-
-function getClaudeProjectsDir(): string {
-  const configPath = vscode.workspace.getConfiguration('hismartlite').get<string>('claudeProjectsPath');
-  if (configPath) {
-    return configPath.replace(/^~/, os.homedir());
-  }
-  return path.join(os.homedir(), '.claude', 'projects');
-}
-
-function findJsonlFiles(dirPath: string): string[] {
-  const results: string[] = [];
-  try {
-    const entries = fs.readdirSync(dirPath, { withFileTypes: true });
-    for (const entry of entries) {
-      const full = path.join(dirPath, entry.name);
-      if (entry.isDirectory()) {
-        if (entry.name === 'subagents') continue;
-        results.push(...findJsonlFiles(full));
-      } else if (entry.name.endsWith('.jsonl')) {
-        results.push(full);
-      }
-    }
-  } catch (e: any) {
-    console.error(`[cannbot] findJsonlFiles error in ${dirPath}: ${e.code || e.message}`);
-  }
-  return results;
-}
-
-async function pickJsonlFiles(filePaths: string[], sourceLabel: string): Promise<string[] | undefined> {
-  // Extract first user query from each file for display
-  const items = filePaths.map(f => {
-    const query = extractFirstUserQuery(f);
-    return {
-      label: query || path.basename(f),
-      description: `${sourceLabel} · ${path.basename(f)}`,
-      detail: path.dirname(f),
-      filePath: f,
-      picked: false,
-    };
-  });
-
-  if (filePaths.length === 0) return [];
-
-  const MAX_DIRECT_PICK = 20;
-  if (filePaths.length <= MAX_DIRECT_PICK) {
-    const selected = await vscode.window.showQuickPick(items, {
-      canPickMany: true,
-      matchOnDescription: true,
-      matchOnDetail: true,
-      placeHolder: t('import.picker.selectFiles', filePaths.length),
-    });
-    if (!selected) return undefined;
-    return selected.map(s => s.filePath);
-  }
-
-  const selected = await vscode.window.showQuickPick(items, {
-    canPickMany: true,
-    matchOnDescription: true,
-    matchOnDetail: true,
-    placeHolder: t('import.picker.selectFilesEsc', filePaths.length),
-  });
-  if (!selected) return undefined;
-  return selected.map(s => s.filePath);
-}
-
-// ── JSONL first-query extraction ──────────────────────────
-
-function extractFirstUserQuery(filePath: string): string | null {
-  try {
-    const content = fs.readFileSync(filePath, 'utf-8');
-    if (!content.trim()) return null;
-    const lines = content.split('\n');
-    for (const line of lines) {
-      if (!line.trim()) continue;
-      try {
-        const obj = JSON.parse(line);
-        if (obj.type === 'user' && obj.message) {
-          const msg = obj.message;
-          if (typeof msg.content === 'string') {
-            return msg.content.substring(0, 120);
-          }
-          if (Array.isArray(msg.content)) {
-            for (const block of msg.content) {
-              if (block.type === 'text' && block.text) {
-                return block.text.substring(0, 120);
-              }
-            }
-          }
-        }
-      } catch { /* skip malformed line */ }
-    }
-    return null;
-  } catch {
-    return null;
-  }
-}

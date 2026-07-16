@@ -6,12 +6,9 @@
   "command.openSession.title": "Open Session Detail",
   "command.deleteSession.title": "Delete Session",
   "command.syncSession.title": "Sync from Source",
-  "command.syncAll.title": "Sync All Sessions",
   "viewContainer.title": "CANNBot Insight",
   "view.sessions.name": "Sessions",
   "config.title": "CANNBot Insight",
   "config.claudeProjectsPath.description": "Path to Claude Code projects directory (e.g. ~/.claude/projects). Leave empty for auto-detect.",
-  "config.cloudUrl.description": "CANNBot Cloud backend URL for uploading feedback and session data.",
-  "config.autoSync.enabled.description": "Automatically sync imported sessions when their source files change.",
-  "config.autoSync.intervalMs.description": "Interval in milliseconds between auto-sync checks (default: 30000 = 30s)."
+  "config.cloudUrl.description": "CANNBot Cloud backend URL for uploading feedback and session data."
 }

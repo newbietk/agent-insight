@@ -274,7 +274,7 @@ function renderContextGrowthChart() {
   var svg = '<svg width="100%" height="' + SVG_H + '" viewBox="0 0 ' + SVG_W + ' ' + SVG_H + '" style="display:block;max-width:' + SVG_W + 'px">';
 
   // Background
-  svg += '<rect width="' + SVG_W + '" height="' + SVG_H + '" fill="' + (typeof currentTheme !== 'undefined' && currentTheme === 'light' ? '#fafafc' : '#1b1e2b') + '" rx="6"/>';
+  svg += '<rect width="' + SVG_W + '" height="' + SVG_H + '" fill="#fafafc" rx="6"/>';
 
   // Context limit zones
   var safeY = toY(ctxLimit * 0.5);
@@ -353,7 +353,7 @@ function renderContextGrowthChart() {
       var r = ls.isRoot ? 2.5 : 2;
       if (isActive) r = 3.5;
       var turnId = pts[dti].turn.id || '';
-      svg += '<circle class="ctx-chart-dot" data-turn-id="' + esc(turnId) + '" cx="' + pts[dti].x.toFixed(1) + '" cy="' + pts[dti].y.toFixed(1) + '" r="' + r + '" fill="' + lcolor + '" stroke="' + (typeof currentTheme !== 'undefined' && currentTheme === 'light' ? '#fff' : '#1b1e2b') + '" stroke-width="1" cursor="pointer"/>';
+      svg += '<circle class="ctx-chart-dot" data-turn-id="' + esc(turnId) + '" cx="' + pts[dti].x.toFixed(1) + '" cy="' + pts[dti].y.toFixed(1) + '" r="' + r + '" fill="' + lcolor + '" stroke="#fff" stroke-width="1" cursor="pointer"/>';
     }
 
     // Event markers (growth, peak, warning)
@@ -385,7 +385,7 @@ function renderContextGrowthChart() {
     if (lx + (label.length * 6.5) > PAD.left + plotW) {
       lx = lastPt.x - 6 - (label.length * 6.5);
     }
-    svg += '<rect x="' + (lx - 4) + '" y="' + (ly - 9) + '" width="' + (label.length * 6.5 + 8) + '" height="14" rx="3" fill="' + (typeof currentTheme !== 'undefined' && currentTheme === 'light' ? '#fff' : '#1b1e2b') + '" fill-opacity="0.85"/>';
+    svg += '<rect x="' + (lx - 4) + '" y="' + (ly - 9) + '" width="' + (label.length * 6.5 + 8) + '" height="14" rx="3" fill="#fff" fill-opacity="0.85"/>';
     svg += '<text x="' + lx + '" y="' + (ly + 2) + '" font-size="9" fill="' + lcolor + '" font-weight="' + (ls.isRoot ? '600' : '400') + '">' + label + '</text>';
 
     svg += '</g>';

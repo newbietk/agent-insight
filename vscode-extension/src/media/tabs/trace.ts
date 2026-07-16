@@ -564,10 +564,10 @@ function renderTraceGraphView(container) {
   var svg = '<svg width="' + SVG_W + '" height="' + SVG_H + '" viewBox="0 0 ' + SVG_W + ' ' + SVG_H + '" style="display:block;margin:0 auto;max-width:100%">';
 
   // Background
-  svg += '<rect width="' + SVG_W + '" height="' + SVG_H + '" fill="' + (typeof currentTheme !== 'undefined' && currentTheme === 'light' ? '#fafafc' : '#1b1e2b') + '" rx="8"/>';
+  svg += '<rect width="' + SVG_W + '" height="' + SVG_H + '" fill="#fafafc" rx="8"/>';
 
   // Legend background
-  svg += '<rect x="8" y="6" width="' + (SVG_W - 16) + '" height="' + (LEGEND_H - 10) + '" fill="' + (typeof currentTheme !== 'undefined' && currentTheme === 'light' ? '#f3f4f6' : '#212433') + '" stroke="var(--border)" stroke-width="1" rx="6"/>';
+  svg += '<rect x="8" y="6" width="' + (SVG_W - 16) + '" height="' + (LEGEND_H - 10) + '" fill="#f3f4f6" stroke="var(--border)" stroke-width="1" rx="6"/>';
   svg += '<text x="18" y="24" font-size="10" fill="#888" font-weight="bold">${escHtml(t('trace.legend'))}</text>';
 
   // Legend items

@@ -162,11 +162,13 @@ export function splitIntoTurns(
   let prevInputMessagesTokens = 0;
   let prevContextKey = '';
   // Loop index of the most recent /compact continuation turn in the current
-  // execution context. A continuation replaces the conversation history with a
-  // summary, so the next assistant turn's prompt legitimately shrinks and its
-  // input-message count must restart from the summary, not accumulate all
-  // pre-compact turns.
+  // execution context.
   let prevCompactBoundaryIdx = -1;
+
+  // O(1) running message counters per context scope (replaces O(n²) rescan).
+  // Key: subagent session id; 'root' key for root-level messages.
+  let rootMsgCount = 0;
+  const subMsgCounts = new Map<string, number>();
 
   for (let i = 0; i < interactions.length; i++) {
     const interaction = interactions[i];
@@ -222,26 +224,11 @@ export function splitIntoTurns(
 
     if (role === 'assistant') {
       inputMessagesJson = null;
-      let count = 0;
       const mySubagentSessionId = interaction.subagent_session_id ?? null;
-      // After a /compact, the history is replaced by the continuation summary,
-      // so count only turns from the last compact boundary onward (plus the
-      // summary itself) instead of every pre-compact turn.
-      const startJ = prevCompactBoundaryIdx >= 0 ? prevCompactBoundaryIdx : 0;
-      for (let j = startJ; j < i; j++) {
-        const prev = interactions[j];
-        const prevRole = prev.role === 'subagent' ? 'assistant' : prev.role;
-        // For subagent turns, only count prior turns in the same subagent session
-        // For root turns, count all prior root turns (skip subagent turns)
-        if (mySubagentSessionId) {
-          if (prev.subagent_session_id === mySubagentSessionId &&
-              (prevRole === 'user' || prevRole === 'assistant' || prevRole === 'system')) count++;
-        } else {
-          if (!prev.subagent_session_id &&
-              (prevRole === 'user' || prevRole === 'assistant' || prevRole === 'system')) count++;
-        }
-      }
-      inputMessagesCount = count;
+      // O(1): read running counter for this scope (replaces O(n²) backward scan)
+      inputMessagesCount = mySubagentSessionId
+        ? (subMsgCounts.get(mySubagentSessionId) ?? 0)
+        : rootMsgCount;
 
       // Use totalTokens (the authoritative prompt size reported by the agent)
       // as the context-size base. It correctly reflects /compact — the prompt
@@ -286,6 +273,20 @@ export function splitIntoTurns(
     if (role === 'user' && !isSubagent && content && isContinuationTurn(content)) {
       prevInputMessagesTokens = 0;
       prevCompactBoundaryIdx = i;
+      // Reset O(1) running counters for the new compact segment.
+      // The continuation turn itself will be counted by the increment below.
+      rootMsgCount = 0;
+      subMsgCounts.clear();
+    }
+
+    // O(1): increment running message counters for this interaction so future
+    // assistant turns can read the correct count without an O(n²) backward scan.
+    if (role === 'user' || role === 'assistant' || role === 'system') {
+      if (isSubagent && subagentSessionId) {
+        subMsgCounts.set(subagentSessionId, (subMsgCounts.get(subagentSessionId) ?? 0) + 1);
+      } else {
+        rootMsgCount++;
+      }
     }
 
     const turn: TurnRow = {

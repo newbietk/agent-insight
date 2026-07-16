@@ -293,11 +293,11 @@ function drawTokenTrendChart() {
     maxVal = Math.max(maxVal, toNumber(chartTurns[i].totalTokens));
   }
 
-  ctx.fillStyle = currentTheme === 'light' ? '#fafafc' : '#1e1e1e';
+  ctx.fillStyle = '#fafafc';
   ctx.fillRect(0, 0, W, H);
 
   // Grid
-  ctx.strokeStyle = currentTheme === 'light' ? 'rgba(0,0,0,0.06)' : 'rgba(255,255,255,0.06)';
+  ctx.strokeStyle = 'rgba(0,0,0,0.06)';
   ctx.lineWidth = 1;
   for (var gi = 0; gi <= 4; gi++) {
     var gy = pad.top + ph * (1 - gi/4);
@@ -354,7 +354,7 @@ function drawTokenTrendChart() {
     var dy = pad.top + ph * (1 - toNumber(chartTurns[di].totalTokens) / maxVal);
     ctx.beginPath(); ctx.arc(dx, dy, 3.5, 0, Math.PI*2);
     ctx.fillStyle = '#569cd6'; ctx.fill();
-    ctx.strokeStyle = currentTheme === 'light' ? '#fafafc' : '#1e1e1e'; ctx.lineWidth = 1.5; ctx.stroke();
+    ctx.strokeStyle = '#fafafc'; ctx.lineWidth = 1.5; ctx.stroke();
     chartDots.push({
       x: dx, y: dy,
       turnId: chartTurns[di].id,

@@ -5,6 +5,8 @@ import { t } from '../i18n';
 
 export class SessionPanelManager {
   private panels: Map<string, vscode.WebviewPanel> = new Map();
+  private activeTabs: Map<string, string> = new Map();
+  private refreshBusy: Set<string> = new Set();
 
   constructor(private storage: Storage) {}
 
@@ -32,13 +34,48 @@ export class SessionPanelManager {
     );
 
     const nonce = getNonce();
-    panel.webview.html = getWebviewContent(data, panel.webview.cspSource, nonce, sessionId);
+    const initialTab = this.activeTabs.get(sessionId) || 'overview';
+    panel.webview.html = getWebviewContent(data, panel.webview.cspSource, nonce, sessionId, initialTab);
+
+    // Handle messages from webview: tab tracking and manual/auto refresh
+    panel.webview.onDidReceiveMessage(msg => {
+      if (msg.type === 'tabChange' && msg.tab) {
+        this.activeTabs.set(sessionId, msg.tab);
+      }
+      if (msg.type === 'requestRefresh') {
+        this.handleRefresh(sessionId, panel);
+      }
+    });
 
     panel.onDidDispose(() => {
       this.panels.delete(sessionId);
     });
 
     this.panels.set(sessionId, panel);
+  }
+
+  private async handleRefresh(sessionId: string, panel: vscode.WebviewPanel): Promise<void> {
+    if (this.refreshBusy.has(sessionId)) return;
+    this.refreshBusy.add(sessionId);
+    try {
+      const { syncSession } = require('../importer');
+      const result = await syncSession(this.storage, sessionId);
+      if (result.newTurnCount > 0) {
+        const data = this.storage.getSessionDetail(sessionId);
+        if (data) {
+          const nonce = getNonce();
+          const initialTab = this.activeTabs.get(sessionId) || 'overview';
+          panel.webview.html = getWebviewContent(data, panel.webview.cspSource, nonce, sessionId, initialTab, {
+            newTurnCount: result.newTurnCount,
+            totalTurnCount: result.totalTurnCount,
+          });
+        }
+      }
+    } catch {
+      // silent in background
+    } finally {
+      this.refreshBusy.delete(sessionId);
+    }
   }
 
   disposeAll(): void {

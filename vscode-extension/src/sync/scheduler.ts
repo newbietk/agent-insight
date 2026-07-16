@@ -28,6 +28,10 @@ export class SyncScheduler {
   start(): void {
     this.stop();
 
+    // Dispose old config listeners before creating new ones (prevents leak on restart)
+    for (const d of this.disposables) d.dispose();
+    this.disposables = [];
+
     const config = vscode.workspace.getConfiguration('hismartlite.autoSync');
     const enabled = config.get<boolean>('enabled', false);
     if (!enabled) return;
