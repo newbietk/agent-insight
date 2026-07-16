@@ -426,7 +426,10 @@ function getOpenCodeDbPaths(): string[] {
     ];
   }
   if (process.platform === 'darwin') {
-    return [path.join(home, 'Library', 'Application Support', 'opencode', 'opencode.db')];
+    return [
+      path.join(home, 'Library', 'Application Support', 'opencode', 'opencode.db'),
+      path.join(home, '.local', 'share', 'opencode', 'opencode.db'),
+    ];
   }
   return [path.join(home, '.local', 'share', 'opencode', 'opencode.db')];
 }
