@@ -186,34 +186,6 @@ const en: Record<string, string> = {
   'turnDetail.traceAction': 'Trace this turn',
   'turnDetail.contextAction': 'View in context',
 
-  // ── Feedback drawer ──
-  'feedback.title': 'Send Feedback',
-  'feedback.issueType': 'Issue Type',
-  'feedback.issueContextExplosion': 'Context Explosion',
-  'feedback.issueDuplicateReads': 'Duplicate Reads',
-  'feedback.issueCostSpike': 'Cost Spike',
-  'feedback.issueHallucination': 'Hallucination',
-  'feedback.issueOther': 'Other',
-  'feedback.problemDesc': 'Problem Description',
-  'feedback.problemPlaceholder': 'Describe what went wrong...',
-  'feedback.helpRequest': 'Help Request (optional)',
-  'feedback.helpPlaceholder': 'What do you need help with?',
-  'feedback.contactEmail': 'Contact Email (optional)',
-  'feedback.emailPlaceholder': 'your@email.com',
-  'feedback.task': 'Task',
-  'feedback.uploadTo': 'Upload to',
-  'feedback.submit': 'Submit to Cloud',
-  'feedback.uploading': 'Uploading...',
-  'feedback.pleaseDescribe': 'Please describe the problem first.',
-  'feedback.uploaded': 'Uploaded! Submission ID: {0}',
-  'feedback.uploadFailed': 'Upload failed: {0}',
-  'feedback.uploadDisabled': 'Upload is currently unavailable. Please contact the plugin administrator.',
-  'feedback.progressExport': 'Exporting session data...',
-  'feedback.progressUpload': 'Uploading to cloud...',
-  'feedback.progressDone': 'Done!',
-  'feedback.uploadTimeout': 'Upload timed out — server did not respond within 5 seconds. Please check your network and try again.',
-  'feedback.dragHint': 'Drag me · Click to send feedback',
-
   // ── Import errors ──
   'import.error.alreadyImported': 'Session "{0}" is already imported. Delete it first to re-import.',
 
@@ -377,7 +349,6 @@ const en: Record<string, string> = {
   'trace.noNodes': 'No propagation nodes',
 
   // ── Audit tab ──
-  'detail.tabFeedback': 'Feedback',
   'detail.tabAudit': 'Audit',
   'audit.title': 'Workflow Diagram + Issue Audit',
   'audit.description': 'Feed the session workflow trajectory MD to Claude Code (with the agreed prompt), paste the returned JSON below, and click "Render" to draw the actual workflow diagram with per-node/per-phase issues and optimization suggestions.',

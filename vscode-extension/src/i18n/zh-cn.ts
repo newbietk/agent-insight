@@ -186,34 +186,6 @@ const zhCN: Record<string, string> = {
   'turnDetail.traceAction': '追踪此轮次',
   'turnDetail.contextAction': '查看上下文',
 
-  // ── Feedback drawer ──
-  'feedback.title': '发送反馈',
-  'feedback.issueType': '问题类型',
-  'feedback.issueContextExplosion': '上下文爆炸',
-  'feedback.issueDuplicateReads': '重复读取',
-  'feedback.issueCostSpike': '费用飙升',
-  'feedback.issueHallucination': '幻觉',
-  'feedback.issueOther': '其他',
-  'feedback.problemDesc': '问题描述',
-  'feedback.problemPlaceholder': '描述出了什么问题...',
-  'feedback.helpRequest': '帮助请求（可选）',
-  'feedback.helpPlaceholder': '需要什么帮助？',
-  'feedback.contactEmail': '联系邮箱（可选）',
-  'feedback.emailPlaceholder': 'your@email.com',
-  'feedback.task': '任务',
-  'feedback.uploadTo': '上传至',
-  'feedback.submit': '提交至云端',
-  'feedback.uploading': '上传中...',
-  'feedback.pleaseDescribe': '请先描述问题。',
-  'feedback.uploaded': '上传成功！提交 ID: {0}',
-  'feedback.uploadFailed': '上传失败: {0}',
-  'feedback.uploadDisabled': '上传开小差啦，请联系插件管理员~',
-  'feedback.progressExport': '正在导出会话数据...',
-  'feedback.progressUpload': '正在上传至云端...',
-  'feedback.progressDone': '完成！',
-  'feedback.uploadTimeout': '上传超时 — 服务器 5 秒内未响应，请检查网络后重试。',
-  'feedback.dragHint': '可拖拽 · 点击发送反馈',
-
   // ── Import errors ──
   'import.error.alreadyImported': '会话「{0}」已导入。请先删除后再重新导入。',
 
@@ -377,7 +349,6 @@ const zhCN: Record<string, string> = {
   'trace.noNodes': '无传播节点',
 
   // ── Audit tab ──
-  'detail.tabFeedback': '问题反馈',
   'detail.tabAudit': '流程审计',
   'audit.title': '流程框图 + 问题审计',
   'audit.description': '把该 session 的实际流程轨迹 MD 喂给 Claude Code（用约定的提示词），将返回的 JSON 粘贴到下方，点「渲染分析」即画出实际流程框图 + 每个节点/阶段的问题与优化建议。',

@@ -11,9 +11,8 @@ import { renderFileOpsTab, renderFileOpsJS } from './tabs/fileops';
 import { renderTraceTab, renderTraceJS } from './tabs/trace';
 import { renderContextTab, renderContextJS } from './tabs/context';
 import { renderAuditTab, renderAuditJS } from './tabs/audit';
-import { renderFeedbackTab, renderFeedbackJS } from './tabs/feedback';
 
-// ── Tab definitions (8 tabs, order matches parent project priority) ──
+// ── Tab definitions (7 tabs) ──
 const TAB_DEFS: Array<{ key: string; label: string; icon: string }> = [
   { key: 'overview',  label: t('detail.tabOverview'),   icon: '📊' },
   { key: 'turns',     label: t('detail.tabTurns'),      icon: '💬' },
@@ -22,14 +21,12 @@ const TAB_DEFS: Array<{ key: string; label: string; icon: string }> = [
   { key: 'audit',     label: t('detail.tabAudit'),      icon: '📋' },
   { key: 'skills',    label: t('detail.tabSkills'),     icon: '🧩' },
   { key: 'fileops',   label: t('detail.tabFileOps'),    icon: '📁' },
-  { key: 'feedback',  label: t('detail.tabFeedback'),   icon: '📬' },
 ];
 
 export function getWebviewContent(
   data: SessionDetailData,
   cspSource: string,
   nonce: string,
-  cloudUrl: string,
   sessionId: string
 ): string {
   const { session, turns } = data;
@@ -446,17 +443,6 @@ function __(key) {
   }
   .session-meta span { color: var(--text); font-weight: 500; }
 
-  /* ── Feedback toast ── */
-  .feedback-toast {
-    position: fixed; top: 16px; right: 16px; z-index: 300;
-    padding: 10px 16px; border-radius: 6px; font-size: 12px;
-    max-width: 340px; box-shadow: 0 4px 16px rgba(0,0,0,0.3);
-    transform: translateX(120%); transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-  }
-  .feedback-toast.show { transform: translateX(0); }
-  .feedback-toast.success { background: #1a3a2a; color: #5ec49e; border: 1px solid #2a5a3a; }
-  .feedback-toast.error { background: #3a1a1a; color: #e8676b; border: 1px solid #5a2a2a; }
-
   /* ── File Operations Audit Tab ── */
   .fileops-layout {
     display: flex; gap: 0; height: calc(100vh - 240px); min-height: 400px;
@@ -609,10 +595,6 @@ ${renderContextTab()}
 ${renderAuditTab()}
 ${renderSkillsTab()}
 ${renderFileOpsTab()}
-${renderFeedbackTab()}
-
-<!-- ── Toast ── -->
-<div class="feedback-toast" id="feedbackToast"></div>
 
 <script nonce="${nonce}">
 // ── Data ──
@@ -647,7 +629,6 @@ function switchTab(name) {
     if (name === 'audit') initAuditTab();
     if (name === 'skills') renderSkills();
     if (name === 'fileops') renderFileOps();
-    if (name === 'feedback') initFeedbackTab();
     if (name === 'turns') renderTurnCards(null);
   }, 10);
 }
@@ -670,7 +651,6 @@ ${renderContextJS()}
 ${renderAuditJS()}
 ${renderSkillsJS()}
 ${renderFileOpsJS()}
-${renderFeedbackJS()}
 
 // ── Initialize All ──
 function initAll() {
