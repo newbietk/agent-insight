@@ -702,7 +702,7 @@ function renderFileOpsDetail(turnId) {
     btn.addEventListener('click', function() {
       var blockId = this.getAttribute('data-fileops-copy');
       var content = fileOpsContents[blockId] || '';
-      navigator.clipboard.writeText(content).catch(function() {});
+      navigator.clipboard && navigator.clipboard.writeText(content).catch(function() {});
       var origText = this.textContent;
       this.textContent = '✓';
       var self = this;

@@ -3,6 +3,15 @@ import * as fs from 'node:fs';
 import type { Storage } from '../storage/db';
 import type { SyncResult } from '../importer';
 
+// Lazy-load syncSession to avoid circular deps; resolved once and cached
+let _syncSession: ((storage: Storage, sessionId: string) => Promise<SyncResult>) | null = null;
+function getSyncSession(): (storage: Storage, sessionId: string) => Promise<SyncResult> {
+  if (!_syncSession) {
+    _syncSession = require('../importer').syncSession;
+  }
+  return _syncSession!;
+}
+
 /**
  * Auto-sync scheduler — periodically checks imported sessions' source files
  * for changes and syncs new turns automatically.
@@ -73,8 +82,7 @@ export class SyncScheduler {
   // ── Private ──────────────────────────────────────────────
 
   private async checkAll(): Promise<void> {
-    // Lazily load syncSession to avoid circular deps at module level
-    const { syncSession } = require('../importer');
+    const syncSession = getSyncSession();
 
     const sessions = this.storage.listSessions().filter(s => s.sourcePath);
     if (sessions.length === 0) return;

@@ -1,7 +1,7 @@
 import { readSession, listSessions as listClaudeSessions, collectSubagentToolUseMappings } from './core/claude-jsonl';
 import { readSession as opencodeReadSession, listSessions as opencodeListSessions } from './core/opencode-db';
 import { normalize } from './core/normalize';
-import { splitIntoTurns, resetIdCounter } from './core/turn-split';
+import { splitIntoTurns } from './core/turn-split';
 import type { TurnRow, ToolCallRow, SkillEventRow } from './core/turn-split';
 import type { RawInteraction } from './core/types';
 import { Storage } from './storage/db';
@@ -99,7 +99,6 @@ function pipelineImport(
   if (rawInteractions.length === 0) return null;
 
   const normalized = normalize(rawInteractions, sourceType);
-  resetIdCounter();
   const { turns, toolCalls, skillEvents } = splitIntoTurns(normalized, taskId);
 
   const agg = computeAggregates(turns, toolCalls, skillEvents);
@@ -339,7 +338,6 @@ export async function syncSession(storage: Storage, sessionId: string): Promise<
 
   // 2. Full pipeline
   const normalized = normalize(rawInteractions, sourceType);
-  resetIdCounter();
   const { turns, toolCalls, skillEvents } = splitIntoTurns(normalized, session.taskId);
 
   // 3. Diff by turnIndex

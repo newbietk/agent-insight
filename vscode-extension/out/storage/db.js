@@ -256,6 +256,8 @@ class Storage {
     importSessionData(session, turns, toolCalls, skillEvents) {
         this.db.prepare('BEGIN').run();
         try {
+            // Delete old session data if re-importing (CASCADE removes turns, tool_calls, skill_events)
+            this.db.prepare('DELETE FROM sessions WHERE id = ?').run(session.id);
             this.insertSession(session);
             for (const turn of turns) {
                 this.insertTurn({ ...turn, sessionId: session.id });
@@ -372,7 +374,7 @@ class Storage {
           totalCost = ?, totalLatencyMs = ?,
           totalToolCallCount = ?, totalLlmCallCount = ?,
           totalSkillLoadCount = ?, totalSubagentCount = ?,
-          endTime = ?, model = COALESCE(?, model),
+          endTime = COALESCE(?, endTime), model = COALESCE(?, model),
           lastSyncedAt = ?
         WHERE id = ?
       `);

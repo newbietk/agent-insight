@@ -35,6 +35,7 @@ var __importStar = (this && this.__importStar) || (function () {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.SessionPanelManager = void 0;
 const vscode = __importStar(require("vscode"));
+const importer_1 = require("../importer");
 const webviewContent_1 = require("../media/webviewContent");
 const i18n_1 = require("../i18n");
 class SessionPanelManager {
@@ -82,8 +83,7 @@ class SessionPanelManager {
             return;
         this.refreshBusy.add(sessionId);
         try {
-            const { syncSession } = require('../importer');
-            const result = await syncSession(this.storage, sessionId);
+            const result = await (0, importer_1.syncSession)(this.storage, sessionId);
             if (result.newTurnCount > 0) {
                 const data = this.storage.getSessionDetail(sessionId);
                 if (data) {
@@ -108,15 +108,14 @@ class SessionPanelManager {
             panel.dispose();
         }
         this.panels.clear();
+        this.activeTabs.clear();
+        this.refreshBusy.clear();
     }
 }
 exports.SessionPanelManager = SessionPanelManager;
 function getNonce() {
-    let text = '';
-    const possible = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
-    for (let i = 0; i < 64; i++) {
-        text += possible.charAt(Math.floor(Math.random() * possible.length));
-    }
-    return text;
+    const bytes = new Uint8Array(32);
+    crypto.getRandomValues(bytes);
+    return Array.from(bytes, b => b.toString(16).padStart(2, '0')).join('');
 }
 //# sourceMappingURL=sessionPanel.js.map

@@ -64,6 +64,7 @@ function auditStorageKey() {
 
 function loadAuditFromStorage() {
   try {
+    if (typeof localStorage === 'undefined') return;
     var raw = localStorage.getItem(auditStorageKey());
     if (!raw) return;
     var parsed = JSON.parse(raw);
@@ -75,11 +76,13 @@ function loadAuditFromStorage() {
 }
 
 function saveAuditToStorage(json) {
-  localStorage.setItem(auditStorageKey(), json);
+  if (typeof localStorage === 'undefined') return;
+  try { localStorage.setItem(auditStorageKey(), json); } catch(e) {}
 }
 
 function clearAuditStorage() {
-  localStorage.removeItem(auditStorageKey());
+  if (typeof localStorage === 'undefined') return;
+  try { localStorage.removeItem(auditStorageKey()); } catch(e) {}
 }
 
 // ── Parse & validate ──

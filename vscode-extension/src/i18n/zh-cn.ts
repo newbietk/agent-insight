@@ -66,6 +66,11 @@ const zhCN: Record<string, string> = {
   'import.claude.skipped': '，跳过 {0} 个',
   'import.claude.noneImported': '未导入任何会话。{0}',
   'import.claude.allEmpty': '所有文件为空或已导入。',
+  'import.claude.importMethod': '如何导入 Claude Code 会话？',
+  'import.claude.fileOption': '$(file) 导入 .jsonl 文件',
+  'import.claude.fileDesc': '选择 Claude Code .jsonl 会话文件',
+  'import.claude.dirOption': '$(folder) 扫描目录',
+  'import.claude.dirDesc': '扫描目录中的 Claude Code .jsonl 文件',
 
   // ── Import: CodeAgent 3.0 ──
   'import.codeagent.dirNotFound': '未找到 CodeAgent 3.0 项目目录。期望路径: {0}',
@@ -95,6 +100,7 @@ const zhCN: Record<string, string> = {
   'import.opencode.dbNotFound': '在默认位置未找到 OpenCode 数据库。',
   'import.opencode.imported': '已导入 {0} 个 OpenCode 会话{1}',
   'import.opencode.allEmpty': '所有会话为空或已导入。',
+  'import.opencode.invalidFileType': '不支持的文件类型 ({0})，请选择 opencode.db 文件。',
 
   // ── Import: Claude / CodeAgent picker labels ──
   'import.claude.codeLabel': 'Claude Code',

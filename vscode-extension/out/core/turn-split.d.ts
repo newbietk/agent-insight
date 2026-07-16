@@ -64,7 +64,6 @@ export interface SkillEventRow {
     completedAt: string | null;
     durationMs: number;
 }
-export declare function resetIdCounter(): void;
 export declare function extractErrorMessage(resultJson: string | null): string | null;
 export declare function splitIntoTurns(interactions: RawInteraction[], sessionId: string, _parentSessionId?: string): {
     turns: TurnRow[];

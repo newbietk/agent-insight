@@ -87,7 +87,9 @@ function parseJsonlLines(filePath) {
             return [];
         }
         if (stat.size > MAX_JSONL_SIZE_BYTES) {
-            console.warn(`claude-jsonl: large file (${(stat.size / 1024 / 1024).toFixed(1)} MB), may cause memory pressure: ${filePath}`);
+            // File too large to safely load synchronously — skip to prevent OOM / host-thread blocking.
+            console.warn(`claude-jsonl: skipping oversize file (${(stat.size / 1024 / 1024).toFixed(1)} MB): ${filePath}`);
+            return [];
         }
         const content = node_fs_1.default.readFileSync(filePath, 'utf-8');
         if (!content.trim())
@@ -151,7 +153,13 @@ function collectJsonlFiles(dirPath, visited) {
 function listSessions(dirPath) {
     if (!dirPath || !node_fs_1.default.existsSync(dirPath))
         return [];
-    let stat = node_fs_1.default.statSync(dirPath);
+    let stat;
+    try {
+        stat = node_fs_1.default.statSync(dirPath);
+    }
+    catch {
+        return [];
+    }
     let files;
     if (stat.isFile() && dirPath.endsWith('.jsonl')) {
         files = [dirPath];
@@ -202,8 +210,13 @@ function listSessions(dirPath) {
 }
 function findSessionFile(dirPath, sessionId, visited) {
     const directPath = node_path_1.default.join(dirPath, sessionId + '.jsonl');
-    if (node_fs_1.default.existsSync(directPath) && node_fs_1.default.statSync(directPath).isFile())
-        return directPath;
+    if (node_fs_1.default.existsSync(directPath)) {
+        try {
+            if (node_fs_1.default.statSync(directPath).isFile())
+                return directPath;
+        }
+        catch { /* fall through */ }
+    }
     try {
         // Symlink cycle guard
         const real = node_fs_1.default.realpathSync(dirPath);
@@ -227,10 +240,23 @@ function findSessionFile(dirPath, sessionId, visited) {
 function listSubagentSessions(dirPath, sessionId) {
     // dirPath can be a file (e.g., /path/to/session.jsonl) or a directory.
     // Subagents live at <parentDir>/sessionId/subagents/
-    const parentDir = node_fs_1.default.statSync(dirPath).isFile() ? node_path_1.default.dirname(dirPath) : dirPath;
-    const subagentsDir = node_path_1.default.join(parentDir, sessionId, 'subagents');
-    if (!node_fs_1.default.existsSync(subagentsDir) || !node_fs_1.default.statSync(subagentsDir).isDirectory())
+    let parentDir = dirPath;
+    try {
+        parentDir = node_fs_1.default.statSync(dirPath).isFile() ? node_path_1.default.dirname(dirPath) : dirPath;
+    }
+    catch {
         return [];
+    }
+    const subagentsDir = node_path_1.default.join(parentDir, sessionId, 'subagents');
+    if (!node_fs_1.default.existsSync(subagentsDir))
+        return [];
+    try {
+        if (!node_fs_1.default.statSync(subagentsDir).isDirectory())
+            return [];
+    }
+    catch {
+        return [];
+    }
     const results = [];
     try {
         const entries = node_fs_1.default.readdirSync(subagentsDir, { withFileTypes: true });
@@ -347,7 +373,13 @@ function groupAssistantLines(lines) {
 function readSession(filePath, sessionId) {
     if (!filePath || !node_fs_1.default.existsSync(filePath))
         return [];
-    const stat = node_fs_1.default.statSync(filePath);
+    let stat;
+    try {
+        stat = node_fs_1.default.statSync(filePath);
+    }
+    catch {
+        return [];
+    }
     let resolvedFilePath;
     if (stat.isFile()) {
         resolvedFilePath = filePath;
@@ -516,8 +548,8 @@ function readSession(filePath, sessionId) {
             const finalToolCalls = skillInvocations.length > 0
                 ? [...allToolCalls, ...skillInvocations]
                 : mergedToolCalls;
-            // Skip if no content and no tool calls
-            if (!mergedContent && !mergedToolCalls)
+            // Skip if no content and no tool calls (including skill invocations)
+            if (!mergedContent && !finalToolCalls)
                 continue;
             const latency = explicitDurationMs ?? (lastTimeCreated && firstTimeCreated ? lastTimeCreated - firstTimeCreated : null);
             result.push({
@@ -679,6 +711,10 @@ function readSession(filePath, sessionId) {
                     result.splice(idx, 1);
                 }
             }
+            // Reset loop index to skip past the merged range.
+            // After the for-loop's i--, the next iteration will start at earliestIdx - 1,
+            // avoiding out-of-bounds access on the now-shortened array.
+            i = earliestIdx;
         }
     }
     // Post-process: infer latency from timestamp gaps and estimate cost

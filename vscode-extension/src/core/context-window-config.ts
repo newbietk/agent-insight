@@ -68,10 +68,10 @@ interface ContextWindowConfig {
 
 let cachedConfig: ContextWindowConfig | null = null;
 
-function loadConfig(): ContextWindowConfig {
+function loadConfig(baseDir?: string): ContextWindowConfig {
   if (cachedConfig !== null) return cachedConfig;
 
-  const configPath = path.join(process.cwd(), "context-windows.json");
+  const configPath = path.join(baseDir || process.cwd(), "context-windows.json");
   try {
     if (fs.existsSync(configPath)) {
       const raw = fs.readFileSync(configPath, "utf-8");
@@ -102,10 +102,13 @@ export function getContextWindowLimit(model: string | null): number {
     if (DEFAULT_CONTEXT_WINDOWS[parts[1]]) return DEFAULT_CONTEXT_WINDOWS[parts[1]];
   }
 
-  for (const key of Object.keys(config.models ?? {})) {
+  // Sort keys by length descending so e.g. "gpt-4o-mini" matches before "gpt-4o"
+  const configKeys = Object.keys(config.models ?? {}).sort((a, b) => b.length - a.length);
+  for (const key of configKeys) {
     if (model.includes(key)) return config.models![key];
   }
-  for (const key of Object.keys(DEFAULT_CONTEXT_WINDOWS)) {
+  const defaultKeys = Object.keys(DEFAULT_CONTEXT_WINDOWS).sort((a, b) => b.length - a.length);
+  for (const key of defaultKeys) {
     if (model.includes(key)) return DEFAULT_CONTEXT_WINDOWS[key];
   }
 

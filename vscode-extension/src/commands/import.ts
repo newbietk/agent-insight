@@ -6,8 +6,9 @@ import * as path from 'node:path';
 import * as os from 'node:os';
 import * as fs from 'node:fs';
 import { t } from '../i18n';
+import { findJsonlFiles, pickJsonlFiles, getClaudeProjectsDir, tryAutoFindOpenCodeDb, browseForDbPath } from '../discovery/fileDiscovery';
 import type { Storage } from '../storage/db';
-import { findJsonlFiles, pickJsonlFiles } from '../discovery/fileDiscovery';
+import { importJsonlFile, listOpenCodeSessions, importOpenCodeSession } from '../importer';
 
 // ── Agent config for parameterized JSONL import ──────────────
 
@@ -98,7 +99,6 @@ async function handleJsonlImport(
   if (!picked || picked.length === 0) return;
 
   // Shared import loop
-  const { importJsonlFile } = require('../importer');
   let imported = 0;
   let skipped = 0;
   const errors: string[] = [];
@@ -121,7 +121,7 @@ async function handleJsonlImport(
 
         try {
           // Large file gate: warn user before importing files >50MB
-          const stat = fs.statSync(filePath);
+          const stat = await fs.promises.stat(filePath);
           const sizeMB = stat.size / 1024 / 1024;
           if (sizeMB > 50) {
             const choice = await vscode.window.showWarningMessage(
@@ -206,7 +206,6 @@ export async function handleClaudeImport(
   storage: Storage,
   mode: 'auto' | 'manual',
 ): Promise<void> {
-  const { getClaudeProjectsDir } = require('../discovery/fileDiscovery');
   await handleJsonlImport(storage, mode, {
     i18nPrefix: 'import.claude',
     autoDir: getClaudeProjectsDir(),
@@ -221,7 +220,6 @@ export async function handleOpenCodeImport(
   storage: Storage,
   mode: 'auto' | 'manual',
 ): Promise<void> {
-  const { tryAutoFindOpenCodeDb, browseForDbPath } = require('../discovery/fileDiscovery');
 
   let dbPath: string | null;
 
@@ -235,8 +233,6 @@ export async function handleOpenCodeImport(
     dbPath = await browseForDbPath();
     if (!dbPath) return;
   }
-
-  const { listOpenCodeSessions, importOpenCodeSession } = require('../importer');
 
   let sessions: Array<{ id: string; label: string | null; model: string | null }>;
   try {

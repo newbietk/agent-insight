@@ -15,14 +15,15 @@ export declare class CompatStmt {
 export declare class CompatDB {
     private sqlDb;
     private filePath;
-    constructor(sqlDb: SqlDatabase, filePath: string);
+    private readOnly;
+    constructor(sqlDb: SqlDatabase, filePath: string, readOnly?: boolean);
     /** Create a CompatDB from a file path (auto-loads or creates). */
     static open(dbPath: string, options?: {
         readOnly?: boolean;
     }): Promise<CompatDB>;
     exec(sql: string): void;
     prepare(sql: string): CompatStmt;
-    /** Persist in-memory database to disk. No-op for ':memory:' databases. */
+    /** Persist in-memory database to disk. No-op for ':memory:' databases and read-only connections. */
     save(): void;
     close(): void;
 }

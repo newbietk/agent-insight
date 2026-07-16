@@ -103,7 +103,6 @@ function pipelineImport(storage, rawInteractions, sourceType, framework, taskId,
     if (rawInteractions.length === 0)
         return null;
     const normalized = (0, normalize_1.normalize)(rawInteractions, sourceType);
-    (0, turn_split_1.resetIdCounter)();
     const { turns, toolCalls, skillEvents } = (0, turn_split_1.splitIntoTurns)(normalized, taskId);
     const agg = computeAggregates(turns, toolCalls, skillEvents);
     const sessionId = generateId();
@@ -300,7 +299,6 @@ async function syncSession(storage, sessionId) {
     }
     // 2. Full pipeline
     const normalized = (0, normalize_1.normalize)(rawInteractions, sourceType);
-    (0, turn_split_1.resetIdCounter)();
     const { turns, toolCalls, skillEvents } = (0, turn_split_1.splitIntoTurns)(normalized, session.taskId);
     // 3. Diff by turnIndex
     const maxIdx = storage.getMaxTurnIndex(sessionId);

@@ -78,18 +78,15 @@ export interface SkillEventRow {
   durationMs: number;
 }
 
-let idCounter = 0;
-
-function generateId(): string {
-  idCounter++;
-  const ts = Date.now().toString(36);
-  const rand = Math.random().toString(36).substring(2, 8);
-  const cnt = idCounter.toString(36);
-  return `c${ts}${rand}${cnt}`;
-}
-
-export function resetIdCounter(): void {
-  idCounter = 0;
+function createIdGenerator(): () => string {
+  let counter = 0;
+  return () => {
+    counter++;
+    const ts = Date.now().toString(36);
+    const rand = Math.random().toString(36).substring(2, 8);
+    const cnt = counter.toString(36);
+    return `c${ts}${rand}${cnt}`;
+  };
 }
 
 function truncateTo200(text: string | null): string | null {
@@ -156,6 +153,7 @@ export function splitIntoTurns(
   _parentSessionId?: string
 ): { turns: TurnRow[], toolCalls: ToolCallRow[], skillEvents: SkillEventRow[] } {
   void _parentSessionId;
+  const generateId = createIdGenerator();
   const turns: TurnRow[] = [];
   const toolCalls: ToolCallRow[] = [];
   const skillEvents: SkillEventRow[] = [];
@@ -261,7 +259,7 @@ export function splitIntoTurns(
       prevInputMessagesTokens = Math.max(prevInputMessagesTokens, inputMessagesTokens);
 
       const contextWindowLimit = getContextWindowLimit(model);
-      contextWindowPct = inputMessagesTokens > 0
+      contextWindowPct = inputMessagesTokens > 0 && contextWindowLimit > 0
         ? (inputMessagesTokens / contextWindowLimit) * 100
         : null;
     }

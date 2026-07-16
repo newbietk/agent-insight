@@ -36,6 +36,14 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.SyncScheduler = void 0;
 const vscode = __importStar(require("vscode"));
 const fs = __importStar(require("node:fs"));
+// Lazy-load syncSession to avoid circular deps; resolved once and cached
+let _syncSession = null;
+function getSyncSession() {
+    if (!_syncSession) {
+        _syncSession = require('../importer').syncSession;
+    }
+    return _syncSession;
+}
 /**
  * Auto-sync scheduler — periodically checks imported sessions' source files
  * for changes and syncs new turns automatically.
@@ -97,8 +105,7 @@ class SyncScheduler {
     }
     // ── Private ──────────────────────────────────────────────
     async checkAll() {
-        // Lazily load syncSession to avoid circular deps at module level
-        const { syncSession } = require('../importer');
+        const syncSession = getSyncSession();
         const sessions = this.storage.listSessions().filter(s => s.sourcePath);
         if (sessions.length === 0)
             return;

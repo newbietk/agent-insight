@@ -1,5 +1,6 @@
 import * as vscode from 'vscode';
 import { Storage } from '../storage/db';
+import { syncSession } from '../importer';
 import { getWebviewContent } from '../media/webviewContent';
 import { t } from '../i18n';
 
@@ -58,7 +59,6 @@ export class SessionPanelManager {
     if (this.refreshBusy.has(sessionId)) return;
     this.refreshBusy.add(sessionId);
     try {
-      const { syncSession } = require('../importer');
       const result = await syncSession(this.storage, sessionId);
       if (result.newTurnCount > 0) {
         const data = this.storage.getSessionDetail(sessionId);
@@ -83,14 +83,13 @@ export class SessionPanelManager {
       panel.dispose();
     }
     this.panels.clear();
+    this.activeTabs.clear();
+    this.refreshBusy.clear();
   }
 }
 
 function getNonce(): string {
-  let text = '';
-  const possible = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
-  for (let i = 0; i < 64; i++) {
-    text += possible.charAt(Math.floor(Math.random() * possible.length));
-  }
-  return text;
+  const bytes = new Uint8Array(32);
+  crypto.getRandomValues(bytes);
+  return Array.from(bytes, b => b.toString(16).padStart(2, '0')).join('');
 }

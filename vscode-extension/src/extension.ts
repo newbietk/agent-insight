@@ -58,7 +58,10 @@ export async function activate(context: vscode.ExtensionContext) {
 
   // ── Register commands ──
   context.subscriptions.push(
-    vscode.commands.registerCommand('hismartlite.import', () => handleImport()),
+    vscode.commands.registerCommand('hismartlite.import', async () => {
+      try { await handleImport(); }
+      catch (err) { vscode.window.showErrorMessage(t('import.failed', String(err))); }
+    }),
     vscode.commands.registerCommand('hismartlite.refreshSessions', () => {
       if (_treeProvider) _treeProvider.refresh();
     }),

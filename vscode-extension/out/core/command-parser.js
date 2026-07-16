@@ -58,13 +58,14 @@ function parseCommandTurns(texts) {
     let output = null;
     for (const text of texts) {
         const nameMatch = COMMAND_PATTERNS.commandName.exec(text);
-        if (nameMatch)
+        // first-match-wins: avoid cross-command mixing when texts span multiple commands
+        if (nameMatch && name === 'unknown')
             name = nameMatch[1].trim();
         const argsMatch = COMMAND_PATTERNS.commandArgs.exec(text);
-        if (argsMatch)
+        if (argsMatch && args === '')
             args = argsMatch[1].trim();
         const stdoutMatch = COMMAND_PATTERNS.localStdout.exec(text);
-        if (stdoutMatch) {
+        if (stdoutMatch && output === null) {
             // Strip ANSI escape sequences
             output = stdoutMatch[1].replace(/\x1b\[[0-9;]*m/g, "").trim();
         }
@@ -80,8 +81,8 @@ function parseContinuationTurn(text) {
     const afterMarker = lines.slice(1).filter(l => l.trim().length > 0 && !l.startsWith("Summary:") && !l.startsWith(CONTINUATION_MARKER));
     const summaryLine = afterMarker.length > 0 ? afterMarker[0].trim() : null;
     // Count numbered sections (e.g. "1.", "2.", "3.")
-    const sectionLines = text.match(/^\d+\.\s/m);
-    const sectionCount = sectionLines ? sectionLines.length : 0;
+    const sectionMatches = text.match(/^\d+\.\s/gm);
+    const sectionCount = sectionMatches ? sectionMatches.length : 0;
     return {
         summaryLine: summaryLine ? summaryLine.substring(0, 120) : null,
         sectionCount,

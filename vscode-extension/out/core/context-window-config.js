@@ -67,10 +67,10 @@ const DEFAULT_CONTEXT_WINDOWS = {
 };
 const FALLBACK_DEFAULT = 200000;
 let cachedConfig = null;
-function loadConfig() {
+function loadConfig(baseDir) {
     if (cachedConfig !== null)
         return cachedConfig;
-    const configPath = node_path_1.default.join(process.cwd(), "context-windows.json");
+    const configPath = node_path_1.default.join(baseDir || process.cwd(), "context-windows.json");
     try {
         if (node_fs_1.default.existsSync(configPath)) {
             const raw = node_fs_1.default.readFileSync(configPath, "utf-8");
@@ -100,11 +100,14 @@ function getContextWindowLimit(model) {
         if (DEFAULT_CONTEXT_WINDOWS[parts[1]])
             return DEFAULT_CONTEXT_WINDOWS[parts[1]];
     }
-    for (const key of Object.keys(config.models ?? {})) {
+    // Sort keys by length descending so e.g. "gpt-4o-mini" matches before "gpt-4o"
+    const configKeys = Object.keys(config.models ?? {}).sort((a, b) => b.length - a.length);
+    for (const key of configKeys) {
         if (model.includes(key))
             return config.models[key];
     }
-    for (const key of Object.keys(DEFAULT_CONTEXT_WINDOWS)) {
+    const defaultKeys = Object.keys(DEFAULT_CONTEXT_WINDOWS).sort((a, b) => b.length - a.length);
+    for (const key of defaultKeys) {
         if (model.includes(key))
             return DEFAULT_CONTEXT_WINDOWS[key];
     }

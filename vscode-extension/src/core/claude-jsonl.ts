@@ -112,7 +112,9 @@ function parseJsonlLines(filePath: string): ClaudeJsonlLine[] {
     let stat: import('fs').Stats;
     try { stat = fs.statSync(filePath); } catch { return []; }
     if (stat.size > MAX_JSONL_SIZE_BYTES) {
-      console.warn(`claude-jsonl: large file (${(stat.size / 1024 / 1024).toFixed(1)} MB), may cause memory pressure: ${filePath}`);
+      // File too large to safely load synchronously — skip to prevent OOM / host-thread blocking.
+      console.warn(`claude-jsonl: skipping oversize file (${(stat.size / 1024 / 1024).toFixed(1)} MB): ${filePath}`);
+      return [];
     }
 
     const content = fs.readFileSync(filePath, 'utf-8');
@@ -173,7 +175,8 @@ function collectJsonlFiles(dirPath: string, visited?: Set<string>): string[] {
 export function listSessions(dirPath: string): SessionListItem[] {
   if (!dirPath || !fs.existsSync(dirPath)) return [];
 
-  let stat = fs.statSync(dirPath);
+  let stat: import('fs').Stats;
+  try { stat = fs.statSync(dirPath); } catch { return []; }
   let files: string[];
 
   if (stat.isFile() && dirPath.endsWith('.jsonl')) {
@@ -228,7 +231,9 @@ export function listSessions(dirPath: string): SessionListItem[] {
 
 function findSessionFile(dirPath: string, sessionId: string, visited?: Set<string>): string | null {
   const directPath = path.join(dirPath, sessionId + '.jsonl');
-  if (fs.existsSync(directPath) && fs.statSync(directPath).isFile()) return directPath;
+  if (fs.existsSync(directPath)) {
+    try { if (fs.statSync(directPath).isFile()) return directPath; } catch { /* fall through */ }
+  }
 
   try {
     // Symlink cycle guard
@@ -252,9 +257,13 @@ function findSessionFile(dirPath: string, sessionId: string, visited?: Set<strin
 export function listSubagentSessions(dirPath: string, sessionId: string): { id: string, filePath: string }[] {
   // dirPath can be a file (e.g., /path/to/session.jsonl) or a directory.
   // Subagents live at <parentDir>/sessionId/subagents/
-  const parentDir = fs.statSync(dirPath).isFile() ? path.dirname(dirPath) : dirPath;
+  let parentDir = dirPath;
+  try {
+    parentDir = fs.statSync(dirPath).isFile() ? path.dirname(dirPath) : dirPath;
+  } catch { return []; }
   const subagentsDir = path.join(parentDir, sessionId, 'subagents');
-  if (!fs.existsSync(subagentsDir) || !fs.statSync(subagentsDir).isDirectory()) return [];
+  if (!fs.existsSync(subagentsDir)) return [];
+  try { if (!fs.statSync(subagentsDir).isDirectory()) return []; } catch { return []; }
 
   const results: { id: string, filePath: string }[] = [];
   try {
@@ -380,7 +389,8 @@ function groupAssistantLines(lines: ClaudeJsonlLine[]): AssistantGroup[] {
 export function readSession(filePath: string, sessionId: string): RawInteraction[] {
   if (!filePath || !fs.existsSync(filePath)) return [];
 
-  const stat = fs.statSync(filePath);
+  let stat: import('fs').Stats;
+  try { stat = fs.statSync(filePath); } catch { return []; }
 
   let resolvedFilePath: string;
   if (stat.isFile()) {
@@ -560,8 +570,8 @@ export function readSession(filePath: string, sessionId: string): RawInteraction
         ? [...allToolCalls, ...skillInvocations]
         : mergedToolCalls;
 
-      // Skip if no content and no tool calls
-      if (!mergedContent && !mergedToolCalls) continue;
+      // Skip if no content and no tool calls (including skill invocations)
+      if (!mergedContent && !finalToolCalls) continue;
 
       const latency = explicitDurationMs ?? (lastTimeCreated && firstTimeCreated ? lastTimeCreated - firstTimeCreated : null);
 
@@ -730,6 +740,11 @@ export function readSession(filePath: string, sessionId: string): RawInteraction
           result.splice(idx, 1);
         }
       }
+
+      // Reset loop index to skip past the merged range.
+      // After the for-loop's i--, the next iteration will start at earliestIdx - 1,
+      // avoiding out-of-bounds access on the now-shortened array.
+      i = earliestIdx;
     }
   }
 

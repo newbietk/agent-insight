@@ -91,7 +91,14 @@ async function activate(context) {
             _treeProvider.refresh(); });
     }
     // ── Register commands ──
-    context.subscriptions.push(vscode.commands.registerCommand('hismartlite.import', () => handleImport()), vscode.commands.registerCommand('hismartlite.refreshSessions', () => {
+    context.subscriptions.push(vscode.commands.registerCommand('hismartlite.import', async () => {
+        try {
+            await handleImport();
+        }
+        catch (err) {
+            vscode.window.showErrorMessage((0, i18n_1.t)('import.failed', String(err)));
+        }
+    }), vscode.commands.registerCommand('hismartlite.refreshSessions', () => {
         if (_treeProvider)
             _treeProvider.refresh();
     }), vscode.commands.registerCommand('hismartlite.openSession', (sessionId) => {

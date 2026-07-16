@@ -9,6 +9,16 @@ import { t } from '../i18n';
 
 // ── JSONL file discovery ─────────────────────────────────────
 
+/** Check whether a directory directly contains any .jsonl files (non-recursive). */
+function dirHasJsonl(dirPath: string): boolean {
+  try {
+    const entries = fs.readdirSync(dirPath, { withFileTypes: true });
+    return entries.some(e => e.isFile() && e.name.endsWith('.jsonl'));
+  } catch {
+    return false;
+  }
+}
+
 export function findJsonlFiles(dirPath: string, visited?: Set<string>): string[] {
   const results: string[] = [];
   try {
@@ -22,7 +32,13 @@ export function findJsonlFiles(dirPath: string, visited?: Set<string>): string[]
     for (const entry of entries) {
       const full = path.join(dirPath, entry.name);
       if (entry.isDirectory()) {
-        if (entry.name === 'subagents') continue;
+        // Only skip 'subagents' directories that are direct children of a
+        // Claude Code project root (a directory containing .jsonl files).
+        // In Claude Code, .claude/projects/<name>/subagents/ stores nested
+        // agent sessions that re-use the same JSONL as the parent — skipping
+        // them avoids double-counting. Legitimate user directories named
+        // 'subagents' elsewhere are still traversed.
+        if (entry.name === 'subagents' && dirHasJsonl(dirPath)) continue;
         results.push(...findJsonlFiles(full, visited));
       } else if (entry.name.endsWith('.jsonl')) {
         results.push(full);
@@ -143,13 +159,22 @@ export function tryAutoFindOpenCodeDb(): string | null {
 }
 
 export async function browseForDbPath(): Promise<string | null> {
-  const uris = await vscode.window.showOpenDialog({
-    canSelectFiles: true,
-    canSelectFolders: false,
-    canSelectMany: false,
-    filters: { [t('import.opencode.sqliteFilter')]: ['db'], [t('import.claude.allFiles')]: ['*'] },
-    title: t('import.opencode.selectDb'),
-  });
-  if (!uris || uris.length === 0) return null;
-  return uris[0].fsPath;
+  // Loop until user picks a valid .db file or cancels
+  while (true) {
+    const uris = await vscode.window.showOpenDialog({
+      canSelectFiles: true,
+      canSelectFolders: false,
+      canSelectMany: false,
+      filters: { [t('import.opencode.sqliteFilter')]: ['db'], [t('import.claude.allFiles')]: ['*'] },
+      title: t('import.opencode.selectDb'),
+    });
+    if (!uris || uris.length === 0) return null;
+
+    const filePath = uris[0].fsPath;
+    if (filePath.endsWith('.db')) return filePath;
+
+    // Invalid file type: warn and re-prompt
+    const ext = path.extname(filePath) || path.basename(filePath);
+    void vscode.window.showErrorMessage(t('import.opencode.invalidFileType', ext));
+  }
 }

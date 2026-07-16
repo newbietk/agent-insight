@@ -46,6 +46,7 @@ const os = __importStar(require("node:os"));
 const fs = __importStar(require("node:fs"));
 const i18n_1 = require("../i18n");
 const fileDiscovery_1 = require("../discovery/fileDiscovery");
+const importer_1 = require("../importer");
 // ── Shared parameterized JSONL import ────────────────────────
 async function handleJsonlImport(storage, mode, config) {
     const { i18nPrefix, autoDir, fileExclude, pickerLabelKey, manualI18nPrefix, cancellable, importIsAsync } = config;
@@ -111,7 +112,6 @@ async function handleJsonlImport(storage, mode, config) {
     if (!picked || picked.length === 0)
         return;
     // Shared import loop
-    const { importJsonlFile } = require('../importer');
     let imported = 0;
     let skipped = 0;
     const errors = [];
@@ -130,7 +130,7 @@ async function handleJsonlImport(storage, mode, config) {
             }
             try {
                 // Large file gate: warn user before importing files >50MB
-                const stat = fs.statSync(filePath);
+                const stat = await fs.promises.stat(filePath);
                 const sizeMB = stat.size / 1024 / 1024;
                 if (sizeMB > 50) {
                     const choice = await vscode.window.showWarningMessage(`文件 "${fileName}" 大小为 ${sizeMB.toFixed(1)} MB（超过 50MB），导入可能导致内存占用过高、VS Code 卡顿甚至崩溃。是否继续导入？`, { modal: true }, '继续导入', '跳过');
@@ -140,8 +140,8 @@ async function handleJsonlImport(storage, mode, config) {
                     }
                 }
                 const result = importIsAsync
-                    ? await importJsonlFile(storage, filePath)
-                    : importJsonlFile(storage, filePath);
+                    ? await (0, importer_1.importJsonlFile)(storage, filePath)
+                    : (0, importer_1.importJsonlFile)(storage, filePath);
                 if (result)
                     imported++;
                 else
@@ -188,10 +188,9 @@ async function handleCodeAgentImport(storage, mode) {
     });
 }
 async function handleClaudeImport(storage, mode) {
-    const { getClaudeProjectsDir } = require('../discovery/fileDiscovery');
     await handleJsonlImport(storage, mode, {
         i18nPrefix: 'import.claude',
-        autoDir: getClaudeProjectsDir(),
+        autoDir: (0, fileDiscovery_1.getClaudeProjectsDir)(),
         pickerLabelKey: 'import.claude.codeLabel',
         manualI18nPrefix: 'import.claude',
         cancellable: true,
@@ -199,24 +198,22 @@ async function handleClaudeImport(storage, mode) {
     });
 }
 async function handleOpenCodeImport(storage, mode) {
-    const { tryAutoFindOpenCodeDb, browseForDbPath } = require('../discovery/fileDiscovery');
     let dbPath;
     if (mode === 'auto') {
-        dbPath = tryAutoFindOpenCodeDb();
+        dbPath = (0, fileDiscovery_1.tryAutoFindOpenCodeDb)();
         if (!dbPath) {
             vscode.window.showInformationMessage((0, i18n_1.t)('import.opencode.dbNotFound'));
             return;
         }
     }
     else {
-        dbPath = await browseForDbPath();
+        dbPath = await (0, fileDiscovery_1.browseForDbPath)();
         if (!dbPath)
             return;
     }
-    const { listOpenCodeSessions, importOpenCodeSession } = require('../importer');
     let sessions;
     try {
-        sessions = await listOpenCodeSessions(dbPath);
+        sessions = await (0, importer_1.listOpenCodeSessions)(dbPath);
     }
     catch (err) {
         vscode.window.showErrorMessage((0, i18n_1.t)('import.opencode.readFailed', err instanceof Error ? err.message : String(err)));
@@ -255,7 +252,7 @@ async function handleOpenCodeImport(storage, mode) {
                 increment: 100 / selected.length,
             });
             try {
-                const result = await importOpenCodeSession(storage, dbPath, session.id);
+                const result = await (0, importer_1.importOpenCodeSession)(storage, dbPath, session.id);
                 if (result) {
                     imported++;
                 }

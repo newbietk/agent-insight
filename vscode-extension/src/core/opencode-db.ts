@@ -1,6 +1,37 @@
 import { CompatDB } from '../storage/compat-db';
 import type { SessionListItem, RawInteraction, ToolCallInfo, TokenUsage } from './types';
 
+// ── SQLite parameter limit safe-guard ───────────────────────
+
+/** Maximum number of host parameters per prepared statement (SQLite default). */
+const SQLITE_MAX_VARIABLE_NUMBER = 999;
+
+/**
+ * Execute a query with an IN clause that may exceed SQLite's parameter limit.
+ * Chunks the IDs array into batches of 999 and merges results.
+ *
+ * @param db      The CompatDB connection
+ * @param prefix  SQL before the IN parentheses, e.g. `SELECT * FROM t WHERE col IN (`
+ * @param suffix  SQL after the IN parentheses, e.g. `) ORDER BY time_created`
+ * @param ids     The array of values to bind into the IN clause
+ * @returns       Merged result array from all batches
+ */
+function batchInQuery<T>(
+  db: CompatDB,
+  prefix: string,
+  suffix: string,
+  ids: string[],
+): T[] {
+  const results: T[] = [];
+  for (let offset = 0; offset < ids.length; offset += SQLITE_MAX_VARIABLE_NUMBER) {
+    const chunk = ids.slice(offset, offset + SQLITE_MAX_VARIABLE_NUMBER);
+    const placeholders = chunk.map(() => '?').join(',');
+    const sql = `${prefix}${placeholders}${suffix}`;
+    results.push(...(db.prepare(sql).all(...chunk) as T[]));
+  }
+  return results;
+}
+
 // ── Session listing ────────────────────────────────────────
 
 export async function listSessions(dbPath: string): Promise<SessionListItem[]> {
@@ -20,9 +51,12 @@ export async function listSessions(dbPath: string): Promise<SessionListItem[]> {
 
     const sessionIds = sessions.map(s => s.id);
 
-    const msgCounts = db.prepare(
-      `SELECT session_id, COUNT(*) as cnt FROM message WHERE session_id IN (${sessionIds.map(() => '?').join(',')}) GROUP BY session_id`
-    ).all(...sessionIds) as { session_id: string; cnt: number }[];
+    const msgCounts = batchInQuery<{ session_id: string; cnt: number }>(
+      db,
+      'SELECT session_id, COUNT(*) as cnt FROM message WHERE session_id IN (',
+      ') GROUP BY session_id',
+      sessionIds,
+    );
 
     const countBySession = new Map<string, number>();
     for (const c of msgCounts) {
@@ -30,9 +64,12 @@ export async function listSessions(dbPath: string): Promise<SessionListItem[]> {
     }
 
     // Load all messages for these sessions, filter by role in JS (avoid sql.js json_extract compat)
-    const allMsgs = db.prepare(
-      `SELECT session_id, id, data FROM message WHERE session_id IN (${sessionIds.map(() => '?').join(',')}) ORDER BY time_created`
-    ).all(...sessionIds) as { session_id: string; id: string; data: string }[];
+    const allMsgs = batchInQuery<{ session_id: string; id: string; data: string }>(
+      db,
+      'SELECT session_id, id, data FROM message WHERE session_id IN (',
+      ') ORDER BY time_created',
+      sessionIds,
+    );
 
     const firstUserMsgBySession = new Map<string, string>();
     const userMsgDataBySession = new Map<string, { id: string; data: string }>();
@@ -57,9 +94,12 @@ export async function listSessions(dbPath: string): Promise<SessionListItem[]> {
     const firstUserMsgIds = [...firstUserMsgBySession.values()];
     const textByMsgId = new Map<string, string[]>();
     if (firstUserMsgIds.length > 0) {
-      const allParts = db.prepare(
-        `SELECT message_id, data FROM part WHERE message_id IN (${firstUserMsgIds.map(() => '?').join(',')}) ORDER BY time_created`
-      ).all(...firstUserMsgIds) as { message_id: string; data: string }[];
+      const allParts = batchInQuery<{ message_id: string; data: string }>(
+        db,
+        'SELECT message_id, data FROM part WHERE message_id IN (',
+        ') ORDER BY time_created',
+        firstUserMsgIds,
+      );
 
       for (const p of allParts) {
         try {
@@ -172,9 +212,12 @@ function _readSession(db: CompatDB, sessionId: string): RawInteraction[] {
   if (msgIds.length === 0) return [];
 
   // Load all parts for these messages, filter by type in JS (avoid sql.js json_extract compat)
-  const allPartRows = msgIds.length > 0 ? db.prepare(
-    `SELECT message_id, data FROM part WHERE message_id IN (${msgIds.map(() => '?').join(',')}) ORDER BY time_created`
-  ).all(...msgIds) as { message_id: string; data: string }[] : [];
+  const allPartRows = msgIds.length > 0 ? batchInQuery<{ message_id: string; data: string }>(
+    db,
+    'SELECT message_id, data FROM part WHERE message_id IN (',
+    ') ORDER BY time_created',
+    msgIds,
+  ) : [];
 
   const allTextParts: { message_id: string; data: string }[] = [];
   const allReasoningParts: { message_id: string; data: string }[] = [];

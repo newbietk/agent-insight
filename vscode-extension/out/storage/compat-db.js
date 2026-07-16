@@ -92,9 +92,11 @@ exports.CompatStmt = CompatStmt;
 class CompatDB {
     sqlDb;
     filePath;
-    constructor(sqlDb, filePath) {
+    readOnly;
+    constructor(sqlDb, filePath, readOnly = false) {
         this.sqlDb = sqlDb;
         this.filePath = filePath;
+        this.readOnly = readOnly;
     }
     /** Create a CompatDB from a file path (auto-loads or creates). */
     static async open(dbPath, options) {
@@ -115,7 +117,7 @@ class CompatDB {
                 throw new Error(`Database not found: ${dbPath}`);
             sqlDb = new sql.Database();
         }
-        return new CompatDB(sqlDb, dbPath);
+        return new CompatDB(sqlDb, dbPath, options?.readOnly ?? false);
     }
     exec(sql) {
         this.sqlDb.exec(sql);
@@ -123,8 +125,10 @@ class CompatDB {
     prepare(sql) {
         return new CompatStmt(this.sqlDb, this.sqlDb.prepare(sql));
     }
-    /** Persist in-memory database to disk. No-op for ':memory:' databases. */
+    /** Persist in-memory database to disk. No-op for ':memory:' databases and read-only connections. */
     save() {
+        if (this.readOnly)
+            return;
         if (this.filePath !== ':memory:') {
             const data = this.sqlDb.export();
             fs.writeFileSync(this.filePath, Buffer.from(data));

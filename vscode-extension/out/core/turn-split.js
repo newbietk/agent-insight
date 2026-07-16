@@ -7,21 +7,19 @@
 // INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY, OR FITNESS FOR A PARTICULAR PURPOSE.
 // See LICENSE in the root of the software repository for the full text of the License.
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.resetIdCounter = resetIdCounter;
 exports.extractErrorMessage = extractErrorMessage;
 exports.splitIntoTurns = splitIntoTurns;
 const context_window_config_1 = require("./context-window-config");
 const command_parser_1 = require("./command-parser");
-let idCounter = 0;
-function generateId() {
-    idCounter++;
-    const ts = Date.now().toString(36);
-    const rand = Math.random().toString(36).substring(2, 8);
-    const cnt = idCounter.toString(36);
-    return `c${ts}${rand}${cnt}`;
-}
-function resetIdCounter() {
-    idCounter = 0;
+function createIdGenerator() {
+    let counter = 0;
+    return () => {
+        counter++;
+        const ts = Date.now().toString(36);
+        const rand = Math.random().toString(36).substring(2, 8);
+        const cnt = counter.toString(36);
+        return `c${ts}${rand}${cnt}`;
+    };
 }
 function truncateTo200(text) {
     if (text === null || text === undefined)
@@ -96,6 +94,7 @@ function classifyError(state, errorMessage) {
 }
 function splitIntoTurns(interactions, sessionId, _parentSessionId) {
     void _parentSessionId;
+    const generateId = createIdGenerator();
     const turns = [];
     const toolCalls = [];
     const skillEvents = [];
@@ -189,7 +188,7 @@ function splitIntoTurns(interactions, sessionId, _parentSessionId) {
             }
             prevInputMessagesTokens = Math.max(prevInputMessagesTokens, inputMessagesTokens);
             const contextWindowLimit = (0, context_window_config_1.getContextWindowLimit)(model);
-            contextWindowPct = inputMessagesTokens > 0
+            contextWindowPct = inputMessagesTokens > 0 && contextWindowLimit > 0
                 ? (inputMessagesTokens / contextWindowLimit) * 100
                 : null;
         }

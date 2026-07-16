@@ -72,7 +72,9 @@ function resolveModelKey(model: string): string | null {
   if (MODEL_PRICING[model]) return model;
   const parts = model.split('/');
   if (parts.length >= 2 && MODEL_PRICING[parts[1]]) return parts[1];
-  for (const key of Object.keys(MODEL_PRICING)) {
+  // Prefer the longest (most specific) key to avoid e.g. gpt-4o matching gpt-4o-mini pricing
+  const sortedKeys = Object.keys(MODEL_PRICING).sort((a, b) => b.length - a.length);
+  for (const key of sortedKeys) {
     if (model.includes(key)) return key;
   }
   return null;

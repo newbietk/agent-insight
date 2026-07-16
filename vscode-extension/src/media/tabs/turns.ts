@@ -942,7 +942,7 @@ function renderTurnDetail(turn) {
       e.stopPropagation();
       var copyId = this.getAttribute('data-copy-id');
       var content = turnDetailContents[copyId] || '';
-      navigator.clipboard.writeText(content).catch(function() {});
+      navigator.clipboard && navigator.clipboard.writeText(content).catch(function() {});
       var origText = this.textContent;
       this.textContent = '✓';
       var self = this;
