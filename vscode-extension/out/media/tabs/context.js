@@ -15,9 +15,7 @@ function renderContextTab() {
   <!-- Multi-agent growth chart -->
   <div class="chart-container" style="position:relative">
     <div class="chart-title">📈 ${(0, shared_1.escHtml)((0, i18n_1.t)('context.growthTitle'))}</div>
-    <div id="contextGrowthChart" style="overflow-x:auto;max-height:460px;position:relative">
-	      <div id="ctxTooltip" class="chart-tooltip"></div>
-	    </div>
+    <div id="contextGrowthChart" style="overflow-x:auto;max-height:460px;position:relative"></div>
     <!-- Legend -->
     <div id="contextLegend" style="display:flex;flex-wrap:wrap;gap:12px;align-items:center;padding:8px 0;font-size:11px"></div>
   </div>
@@ -453,9 +451,14 @@ function renderContextGrowthChart() {
   });
 
   // ── Hover tooltip on chart dots ──
-  var tooltip = document.getElementById('ctxTooltip');
-  if (tooltip) {
-    container.querySelectorAll('.ctx-chart-dot').forEach(function(dot) {
+  var existingTt = document.getElementById('ctxTooltip');
+  if (existingTt) existingTt.remove();
+  var tooltip = document.createElement('div');
+  tooltip.id = 'ctxTooltip';
+  tooltip.className = 'chart-tooltip';
+  container.appendChild(tooltip);
+
+  container.querySelectorAll('.ctx-chart-dot').forEach(function(dot) {
       dot.addEventListener('mouseenter', function(e) {
         var tid = this.getAttribute('data-turn-id');
         var pdata = null;
@@ -494,7 +497,6 @@ function renderContextGrowthChart() {
         tooltip.style.display = 'none';
       });
     });
-  }
 
   // Render legend
   if (legend) {
@@ -530,7 +532,6 @@ function renderContextGrowthChart() {
 
   // Click on lines to navigate (via data from agent stats)
   // We add simple click area overlay
-  // Skipping complex hover tooltip — vanilla JS limitation
 }
 
 // ── Context summary stats ──
