@@ -120,7 +120,7 @@
         },
         "hismartlite.cloudUrl": {
           "type": "string",
-          "default": "http://localhost:21026",
+          "default": "",
           "description": "%config.cloudUrl.description%"
         },
         "hismartlite.autoSync.enabled": {

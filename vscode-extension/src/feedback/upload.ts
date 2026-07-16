@@ -132,10 +132,14 @@ export async function uploadFeedback(
   // 4. POST to cloud — fetch auto-sets Content-Type for FormData body
   const url = cloudUrl.replace(/\/+$/, '') + '/api/submissions';
   try {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 15_000);
     const res = await fetch(url, {
       method: 'POST',
       body: formData,
+      signal: controller.signal,
     });
+    clearTimeout(timeout);
 
     if (!res.ok) {
       const text = await res.text().catch(() => '');
@@ -149,8 +153,11 @@ export async function uploadFeedback(
       submissionId: (json.id as string) || (json.submissionId as string),
       status: json.status as string | undefined,
     };
-  } catch (err) {
+  } catch (err: any) {
+    if (err?.name === 'AbortError') {
+      return { success: false, error: `Request timed out after 15s — cloud server unreachable at ${url}` };
+    }
     const msg = err instanceof Error ? err.message : String(err);
-    return { success: false, error: `${url}: ${msg}` };
+    return { success: false, error: msg };
   }
 }
