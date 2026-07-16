@@ -207,6 +207,7 @@ const zhCN: Record<string, string> = {
   'feedback.pleaseDescribe': '请先描述问题。',
   'feedback.uploaded': '上传成功！提交 ID: {0}',
   'feedback.uploadFailed': '上传失败: {0}',
+  'feedback.uploadDisabled': '上传开小差啦，请联系插件管理员~',
   'feedback.dragHint': '可拖拽 · 点击发送反馈',
 
   // ── Import errors ──

@@ -121,7 +121,7 @@ function initFeedbackTab() {
         if (problem) problem.value = '';
         if (help) help.value = '';
       } else {
-        showFeedbackToast(__('feedback.uploadFailed', msg.error || 'Unknown error'), true);
+        showFeedbackToast(msg.error || __('feedback.uploadFailed', 'Unknown error'), true);
       }
     }
   });

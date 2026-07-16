@@ -38,6 +38,23 @@ const vscode = __importStar(require("vscode"));
 const webviewContent_1 = require("../media/webviewContent");
 const upload_1 = require("../feedback/upload");
 const i18n_1 = require("../i18n");
+/** Environment variable used to configure the cloud submission endpoint at install time. */
+const ENV_CLOUD_URL = 'CANNBOT_CLOUD_URL';
+/**
+ * Resolve the cloud upload URL:
+ * 1. `CANNBOT_CLOUD_URL` env var (set during VSIX install)
+ * 2. VS Code `hismartlite.cloudUrl` config setting
+ * 3. Returns empty string if neither is meaningfully configured.
+ */
+function getCloudUrl() {
+    const envUrl = process.env[ENV_CLOUD_URL];
+    if (envUrl && envUrl.trim())
+        return envUrl.trim();
+    const configUrl = vscode.workspace.getConfiguration('hismartlite').get('cloudUrl');
+    if (configUrl && configUrl.trim())
+        return configUrl.trim();
+    return '';
+}
 class SessionPanelManager {
     storage;
     panels = new Map();
@@ -55,7 +72,7 @@ class SessionPanelManager {
             vscode.window.showErrorMessage((0, i18n_1.t)('session.notFound', sessionId));
             return;
         }
-        const cloudUrl = vscode.workspace.getConfiguration('hismartlite').get('cloudUrl') || 'http://localhost:21026';
+        const cloudUrl = getCloudUrl();
         const panel = vscode.window.createWebviewPanel('hismartlite.sessionDetail', (0, i18n_1.t)('detail.panelTitle', data.session.taskId.substring(0, 30)), vscode.ViewColumn.One, {
             enableScripts: true,
             retainContextWhenHidden: true,
@@ -73,20 +90,29 @@ class SessionPanelManager {
                     helpRequest: msg.helpRequest || '',
                     contactEmail: msg.contactEmail || '',
                 };
+                // Guard: cloud URL not configured (no env var, no config)
+                if (!cloudUrl) {
+                    panel.webview.postMessage({
+                        type: 'feedbackResult',
+                        success: false,
+                        error: (0, i18n_1.t)('feedback.uploadDisabled'),
+                    });
+                    return;
+                }
                 try {
                     const result = await (0, upload_1.uploadFeedback)(this.storage, sessionId, form, cloudUrl);
                     panel.webview.postMessage({
                         type: 'feedbackResult',
                         success: result.success,
                         submissionId: result.submissionId,
-                        error: result.error,
+                        error: result.error ? (0, i18n_1.t)('feedback.uploadFailed', result.error) : undefined,
                     });
                 }
                 catch (err) {
                     panel.webview.postMessage({
                         type: 'feedbackResult',
                         success: false,
-                        error: err instanceof Error ? err.message : String(err),
+                        error: (0, i18n_1.t)('feedback.uploadFailed', err instanceof Error ? err.message : String(err)),
                     });
                 }
             }

@@ -4,6 +4,25 @@ import { getWebviewContent } from '../media/webviewContent';
 import { uploadFeedback, FeedbackForm } from '../feedback/upload';
 import { t } from '../i18n';
 
+/** Environment variable used to configure the cloud submission endpoint at install time. */
+const ENV_CLOUD_URL = 'CANNBOT_CLOUD_URL';
+
+/**
+ * Resolve the cloud upload URL:
+ * 1. `CANNBOT_CLOUD_URL` env var (set during VSIX install)
+ * 2. VS Code `hismartlite.cloudUrl` config setting
+ * 3. Returns empty string if neither is meaningfully configured.
+ */
+function getCloudUrl(): string {
+  const envUrl = process.env[ENV_CLOUD_URL];
+  if (envUrl && envUrl.trim()) return envUrl.trim();
+
+  const configUrl = vscode.workspace.getConfiguration('hismartlite').get<string>('cloudUrl');
+  if (configUrl && configUrl.trim()) return configUrl.trim();
+
+  return '';
+}
+
 export class SessionPanelManager {
   private panels: Map<string, vscode.WebviewPanel> = new Map();
 
@@ -22,7 +41,7 @@ export class SessionPanelManager {
       return;
     }
 
-    const cloudUrl = vscode.workspace.getConfiguration('hismartlite').get<string>('cloudUrl') || 'http://localhost:21026';
+    const cloudUrl = getCloudUrl();
 
     const panel = vscode.window.createWebviewPanel(
       'hismartlite.sessionDetail',
@@ -50,19 +69,29 @@ export class SessionPanelManager {
           contactEmail: msg.contactEmail || '',
         };
 
+        // Guard: cloud URL not configured (no env var, no config)
+        if (!cloudUrl) {
+          panel.webview.postMessage({
+            type: 'feedbackResult',
+            success: false,
+            error: t('feedback.uploadDisabled'),
+          });
+          return;
+        }
+
         try {
           const result = await uploadFeedback(this.storage, sessionId, form, cloudUrl);
           panel.webview.postMessage({
             type: 'feedbackResult',
             success: result.success,
             submissionId: result.submissionId,
-            error: result.error,
+            error: result.error ? t('feedback.uploadFailed', result.error) : undefined,
           });
         } catch (err) {
           panel.webview.postMessage({
             type: 'feedbackResult',
             success: false,
-            error: err instanceof Error ? err.message : String(err),
+            error: t('feedback.uploadFailed', err instanceof Error ? err.message : String(err)),
           });
         }
       }

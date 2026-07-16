@@ -207,6 +207,7 @@ const en: Record<string, string> = {
   'feedback.pleaseDescribe': 'Please describe the problem first.',
   'feedback.uploaded': 'Uploaded! Submission ID: {0}',
   'feedback.uploadFailed': 'Upload failed: {0}',
+  'feedback.uploadDisabled': 'Upload is currently unavailable. Please contact the plugin administrator.',
   'feedback.dragHint': 'Drag me · Click to send feedback',
 
   // ── Import errors ──
