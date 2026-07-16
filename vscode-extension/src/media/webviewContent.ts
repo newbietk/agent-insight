@@ -522,6 +522,7 @@ function __(key) {
     max-width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
   }
   .fileops-file-item-hidden { display: none !important; }
+  .fileops-file-item { display: flex; align-items: center; gap: 10px; }
 
   .fileops-detail-inner { padding: 16px; }
   .fileops-detail-header { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 12px; }

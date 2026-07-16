@@ -269,6 +269,7 @@ const en: Record<string, string> = {
   'fileops.opEdit': 'Edit',
   'fileops.detailTitle': 'File Operations Detail',
   'fileops.showAllFiles': 'Show all ({0} files)',
+  'fileops.expandBatch': '▼ Expand {0} ({1} total)',
   'fileops.showLessFiles': 'Show less',
 
   // ── Subagents tab ──

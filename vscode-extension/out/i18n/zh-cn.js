@@ -248,6 +248,7 @@ const zhCN = {
     'fileops.opEdit': '编辑',
     'fileops.detailTitle': '文件操作详情',
     'fileops.showAllFiles': '展开全部（{0} 个文件）',
+    'fileops.expandBatch': '▼ 展开 {0} 个（共 {1} 个）',
     'fileops.showLessFiles': '收起',
     // ── Subagents tab ──
     'subagents.title': '子代理会话',

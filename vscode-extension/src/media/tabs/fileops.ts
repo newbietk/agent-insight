@@ -336,8 +336,14 @@ function renderFileAnalysis() {
   // Sort: most overlaps first, then most reads
   items.sort(function(a, b) { return b.overlaps !== a.overlaps ? b.overlaps - a.overlaps : b.reads - a.reads; });
 
-  var MAX_VISIBLE = 5;
-  var hasMore = items.length > MAX_VISIBLE;
+  var INITIAL_VISIBLE = 5;
+  var BATCH_SIZE = 10;
+  // visibleCount is stored as a data attr on the list container to survive re-renders
+  var currentVisible = parseInt(list.getAttribute('data-fops-visible')) || INITIAL_VISIBLE;
+  var hasMore = items.length > currentVisible;
+  var remaining = items.length - currentVisible;
+  var batchToShow = Math.min(remaining, BATCH_SIZE);
+  var allExpanded = currentVisible >= items.length;
 
   function renderOneFileItem(it, extraClass) {
     var hasIssue = it.overlaps > 0;
@@ -345,7 +351,7 @@ function renderFileAnalysis() {
     var bgColor = hasIssue ? 'rgba(224,154,107,0.03)' : 'transparent';
     var cls = 'fileops-file-item' + (extraClass ? ' ' + extraClass : '');
 
-    var itemHtml = '<div class="' + cls + '" style="display:flex;align-items:center;gap:10px;padding:8px 12px;margin-bottom:4px;border:1px solid ' + borderColor + ';border-radius:6px;background:' + bgColor + ';font-size:11px">';
+    var itemHtml = '<div class="' + cls + '" style="padding:8px 12px;margin-bottom:4px;border:1px solid ' + borderColor + ';border-radius:6px;background:' + bgColor + ';font-size:11px">';
 
     itemHtml += '<span style="font-weight:600;color:var(--text);flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="' + esc(it.path) + '">📄 ' + esc(it.display) + '</span>';
 
@@ -375,33 +381,40 @@ function renderFileAnalysis() {
 
   var html = '';
   for (var ii = 0; ii < items.length; ii++) {
-    var hiddenClass = (hasMore && ii >= MAX_VISIBLE) ? 'fileops-file-item-hidden' : '';
+    var hiddenClass = (ii >= currentVisible) ? 'fileops-file-item-hidden' : '';
     html += renderOneFileItem(items[ii], hiddenClass);
   }
 
-  if (hasMore) {
-    html += '<button id="fileopsToggleFiles" class="fileops-expand-btn" style="display:block;width:100%;text-align:center;padding:6px;margin-top:4px">' + __('fileops.showAllFiles', items.length) + '</button>';
+  // Toggle button: expand by BATCH_SIZE, or collapse all if fully expanded
+  if (items.length > INITIAL_VISIBLE) {
+    if (allExpanded) {
+      html += '<button id="fileopsToggleFiles" class="fileops-expand-btn" data-expanded="1" style="display:block;width:100%;text-align:center;padding:6px;margin-top:4px">' + __('fileops.showLessFiles') + '</button>';
+    } else {
+      html += '<button id="fileopsToggleFiles" class="fileops-expand-btn" data-expanded="0" style="display:block;width:100%;text-align:center;padding:6px;margin-top:4px">' + esc(__('fileops.expandBatch', batchToShow, items.length)) + '</button>';
+    }
   }
 
   list.innerHTML = html;
 
-  if (hasMore) {
-    var toggleBtn = document.getElementById('fileopsToggleFiles');
-    if (toggleBtn) {
-      toggleBtn.addEventListener('click', function() {
-        var isExpanded = this.getAttribute('data-expanded') === '1';
-        var hiddenItems = list.querySelectorAll('.fileops-file-item-hidden');
-        if (isExpanded) {
-          for (var hi = 0; hi < hiddenItems.length; hi++) { hiddenItems[hi].style.display = 'none'; }
-          this.textContent = __('fileops.showAllFiles', items.length);
-          this.setAttribute('data-expanded', '0');
-        } else {
-          for (var hj = 0; hj < hiddenItems.length; hj++) { hiddenItems[hj].style.display = ''; }
-          this.textContent = __('fileops.showLessFiles');
-          this.setAttribute('data-expanded', '1');
-        }
-      });
-    }
+  // Save current visible count for next render
+  list.setAttribute('data-fops-visible', String(currentVisible));
+
+  var toggleBtn = document.getElementById('fileopsToggleFiles');
+  if (toggleBtn) {
+    toggleBtn.addEventListener('click', function() {
+      var wasExpanded = this.getAttribute('data-expanded') === '1';
+
+      if (wasExpanded) {
+        currentVisible = INITIAL_VISIBLE;
+      } else {
+        currentVisible = Math.min(currentVisible + BATCH_SIZE, items.length);
+      }
+
+      // Write the new visible count to DOM BEFORE re-render,
+      // otherwise renderFileAnalysis() re-reads the stale value.
+      list.setAttribute('data-fops-visible', String(currentVisible));
+      renderFileAnalysis();
+    });
   }
 }
 
@@ -850,9 +863,11 @@ function renderFileOps() {
     return;
   }
 
-  // Reset state
+  // Reset state (including file analysis expansion)
   fileOpsFilter = 'all';
   fileOpsSelectedTurnId = null;
+  var fList = document.getElementById('fileopsFileList');
+  if (fList) fList.removeAttribute('data-fops-visible');
 
   renderFileOpsSummaryCards();
   renderFileOpsFilterBar();
