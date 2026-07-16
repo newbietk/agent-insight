@@ -418,18 +418,18 @@ async function findOpenCodeDb(): Promise<string | null> {
 function getOpenCodeDbPaths(): string[] {
   const home = os.homedir();
   const localAppData = process.env.LOCALAPPDATA || path.join(home, 'AppData', 'Local');
+  const appData = process.env.APPDATA || path.join(home, 'AppData', 'Roaming');
 
   if (process.platform === 'win32') {
     return [
+      // Rust dirs::data_dir() → APPDATA (Roaming), not LOCALAPPDATA
+      path.join(appData, 'opencode', 'opencode.db'),
       path.join(localAppData, 'opencode', 'opencode.db'),
       path.join(home, '.local', 'share', 'opencode', 'opencode.db'),
     ];
   }
   if (process.platform === 'darwin') {
-    return [
-      path.join(home, 'Library', 'Application Support', 'opencode', 'opencode.db'),
-      path.join(home, '.local', 'share', 'opencode', 'opencode.db'),
-    ];
+    return [path.join(home, 'Library', 'Application Support', 'opencode', 'opencode.db')];
   }
   return [path.join(home, '.local', 'share', 'opencode', 'opencode.db')];
 }
