@@ -335,16 +335,35 @@ function __(key) {
   /* ── Expandable section headers (turn detail content / tool calls / skill events) ── */
   .td-section-header {
     display: flex; align-items: center; gap: 8px; padding: 8px 12px;
-    cursor: pointer; user-select: none; border-radius: 4px;
-    transition: background 0.1s; font-size: 12px;
+    cursor: pointer; user-select: none; border-radius: 6px;
+    transition: background 0.15s, box-shadow 0.15s; font-size: 12px;
+    background: rgba(255,255,255,0.03);
+    border: 1px solid rgba(255,255,255,0.06);
+    box-shadow: 0 1px 3px rgba(0,0,0,0.12);
   }
-  .td-section-header:hover { background: rgba(255,255,255,0.04); }
+  .td-section-header:hover {
+    background: rgba(255,255,255,0.06);
+    border-color: rgba(255,255,255,0.1);
+    box-shadow: 0 2px 6px rgba(0,0,0,0.18);
+  }
   .td-section-title { font-weight: 600; color: var(--text); }
   .td-section-meta { font-size: 10px; color: var(--text-dim); }
   .td-section-arrow { font-size: 9px; color: var(--text-dim); flex-shrink: 0; margin-left: auto; transition: transform 0.15s; }
-  .td-section-body { padding: 8px 12px; }
+  .td-section-body {
+    padding: 8px 12px;
+    margin: 2px 0 6px 0;
+    background: rgba(255,255,255,0.015);
+    border: 1px solid rgba(255,255,255,0.04);
+    border-radius: 4px;
+  }
 
-  .td-sub-header { padding: 6px 10px; font-size: 11px; background: rgba(255,255,255,0.015); border-radius: 3px; }
+  .td-sub-header {
+    padding: 6px 10px; font-size: 11px;
+    background: rgba(255,255,255,0.03);
+    border: 1px solid rgba(255,255,255,0.05);
+    border-radius: 4px;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.08);
+  }
 
   /* ── Thinking / text content blocks ── */
   .td-thinking-block {

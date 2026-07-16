@@ -13,8 +13,7 @@ const fileops_1 = require("./tabs/fileops");
 const trace_1 = require("./tabs/trace");
 const context_1 = require("./tabs/context");
 const audit_1 = require("./tabs/audit");
-const feedback_1 = require("./tabs/feedback");
-// ── Tab definitions (8 tabs, order matches parent project priority) ──
+// ── Tab definitions (7 tabs) ──
 const TAB_DEFS = [
     { key: 'overview', label: (0, i18n_1.t)('detail.tabOverview'), icon: '📊' },
     { key: 'turns', label: (0, i18n_1.t)('detail.tabTurns'), icon: '💬' },
@@ -23,9 +22,8 @@ const TAB_DEFS = [
     { key: 'audit', label: (0, i18n_1.t)('detail.tabAudit'), icon: '📋' },
     { key: 'skills', label: (0, i18n_1.t)('detail.tabSkills'), icon: '🧩' },
     { key: 'fileops', label: (0, i18n_1.t)('detail.tabFileOps'), icon: '📁' },
-    { key: 'feedback', label: (0, i18n_1.t)('detail.tabFeedback'), icon: '📬' },
 ];
-function getWebviewContent(data, cspSource, nonce, cloudUrl, sessionId) {
+function getWebviewContent(data, cspSource, nonce, sessionId) {
     const { session, turns } = data;
     const ctxLimit = (0, context_window_config_1.getContextWindowLimit)(session.model);
     const i18nBundle = (0, i18n_1.getBundle)();
@@ -327,16 +325,35 @@ function __(key) {
   /* ── Expandable section headers (turn detail content / tool calls / skill events) ── */
   .td-section-header {
     display: flex; align-items: center; gap: 8px; padding: 8px 12px;
-    cursor: pointer; user-select: none; border-radius: 4px;
-    transition: background 0.1s; font-size: 12px;
+    cursor: pointer; user-select: none; border-radius: 6px;
+    transition: background 0.15s, box-shadow 0.15s; font-size: 12px;
+    background: rgba(255,255,255,0.03);
+    border: 1px solid rgba(255,255,255,0.06);
+    box-shadow: 0 1px 3px rgba(0,0,0,0.12);
   }
-  .td-section-header:hover { background: rgba(255,255,255,0.04); }
+  .td-section-header:hover {
+    background: rgba(255,255,255,0.06);
+    border-color: rgba(255,255,255,0.1);
+    box-shadow: 0 2px 6px rgba(0,0,0,0.18);
+  }
   .td-section-title { font-weight: 600; color: var(--text); }
   .td-section-meta { font-size: 10px; color: var(--text-dim); }
   .td-section-arrow { font-size: 9px; color: var(--text-dim); flex-shrink: 0; margin-left: auto; transition: transform 0.15s; }
-  .td-section-body { padding: 8px 12px; }
+  .td-section-body {
+    padding: 8px 12px;
+    margin: 2px 0 6px 0;
+    background: rgba(255,255,255,0.015);
+    border: 1px solid rgba(255,255,255,0.04);
+    border-radius: 4px;
+  }
 
-  .td-sub-header { padding: 6px 10px; font-size: 11px; background: rgba(255,255,255,0.015); border-radius: 3px; }
+  .td-sub-header {
+    padding: 6px 10px; font-size: 11px;
+    background: rgba(255,255,255,0.03);
+    border: 1px solid rgba(255,255,255,0.05);
+    border-radius: 4px;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.08);
+  }
 
   /* ── Thinking / text content blocks ── */
   .td-thinking-block {
@@ -434,17 +451,6 @@ function __(key) {
     margin-top: 14px; line-height: 1.6;
   }
   .session-meta span { color: var(--text); font-weight: 500; }
-
-  /* ── Feedback toast ── */
-  .feedback-toast {
-    position: fixed; top: 16px; right: 16px; z-index: 300;
-    padding: 10px 16px; border-radius: 6px; font-size: 12px;
-    max-width: 340px; box-shadow: 0 4px 16px rgba(0,0,0,0.3);
-    transform: translateX(120%); transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-  }
-  .feedback-toast.show { transform: translateX(0); }
-  .feedback-toast.success { background: #1a3a2a; color: #5ec49e; border: 1px solid #2a5a3a; }
-  .feedback-toast.error { background: #3a1a1a; color: #e8676b; border: 1px solid #5a2a2a; }
 
   /* ── File Operations Audit Tab ── */
   .fileops-layout {
@@ -598,10 +604,6 @@ ${(0, context_1.renderContextTab)()}
 ${(0, audit_1.renderAuditTab)()}
 ${(0, skills_1.renderSkillsTab)()}
 ${(0, fileops_1.renderFileOpsTab)()}
-${(0, feedback_1.renderFeedbackTab)()}
-
-<!-- ── Toast ── -->
-<div class="feedback-toast" id="feedbackToast"></div>
 
 <script nonce="${nonce}">
 // ── Data ──
@@ -636,7 +638,6 @@ function switchTab(name) {
     if (name === 'audit') initAuditTab();
     if (name === 'skills') renderSkills();
     if (name === 'fileops') renderFileOps();
-    if (name === 'feedback') initFeedbackTab();
     if (name === 'turns') renderTurnCards(null);
   }, 10);
 }
@@ -659,7 +660,6 @@ ${(0, context_1.renderContextJS)()}
 ${(0, audit_1.renderAuditJS)()}
 ${(0, skills_1.renderSkillsJS)()}
 ${(0, fileops_1.renderFileOpsJS)()}
-${(0, feedback_1.renderFeedbackJS)()}
 
 // ── Initialize All ──
 function initAll() {

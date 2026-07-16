@@ -70,40 +70,6 @@ function extractSkillVersion(argsJson) {
     catch { /* ignore */ }
     return null;
 }
-function isAgentSkillDispatch(toolName, argsJson) {
-    const lower = toolName.toLowerCase();
-    if (lower !== 'agent' && lower !== 'task')
-        return false;
-    if (!argsJson)
-        return false;
-    try {
-        const args = JSON.parse(argsJson);
-        const subagentType = args.subagent_type ?? args.subagent_name ?? null;
-        if (!subagentType)
-            return false;
-        // Exclude generic agent types (not skill-driven)
-        if (subagentType === 'general-purpose' || subagentType === 'general')
-            return false;
-        return true;
-    }
-    catch {
-        return false;
-    }
-}
-function extractDispatchSkillName(argsJson) {
-    if (!argsJson)
-        return 'unknown-dispatch';
-    try {
-        const args = JSON.parse(argsJson);
-        const subagentType = args.subagent_type ?? args.subagent_name ?? null;
-        if (subagentType)
-            return subagentType;
-        if (args.description)
-            return String(args.description).substring(0, 40);
-    }
-    catch { /* ignore */ }
-    return 'unknown-dispatch';
-}
 function extractErrorMessage(resultJson) {
     if (!resultJson)
         return null;
@@ -229,7 +195,13 @@ function splitIntoTurns(interactions, sessionId, _parentSessionId) {
                 prevCompactBoundaryIdx = -1;
                 prevContextKey = contextKey;
             }
-            if (inputMessagesTokens > 0 && inputMessagesTokens < prevInputMessagesTokens) {
+            // Carry forward: when this turn has no token data (e.g. CodeAgent 3.0
+            // sometimes omits msgData.tokens), inherit the previous known value rather
+            // than dropping to 0 — the context window doesn't vanish between turns.
+            if (inputMessagesTokens <= 0 && prevInputMessagesTokens > 0) {
+                inputMessagesTokens = prevInputMessagesTokens;
+            }
+            else if (inputMessagesTokens > 0 && inputMessagesTokens < prevInputMessagesTokens) {
                 inputMessagesTokens = prevInputMessagesTokens;
             }
             prevInputMessagesTokens = Math.max(prevInputMessagesTokens, inputMessagesTokens);
@@ -286,7 +258,7 @@ function splitIntoTurns(interactions, sessionId, _parentSessionId) {
         if (interaction.tool_calls) {
             for (const tc of interaction.tool_calls) {
                 const toolCallRowId = generateId();
-                const isSkillRelated = isSkillToolCall(tc.toolName) || isAgentSkillDispatch(tc.toolName, tc.argsJson);
+                const isSkillRelated = isSkillToolCall(tc.toolName);
                 const errMsg = extractErrorMessage(tc.resultJson);
                 const toolCallRow = {
                     id: toolCallRowId,
@@ -307,10 +279,9 @@ function splitIntoTurns(interactions, sessionId, _parentSessionId) {
                 toolCalls.push(toolCallRow);
                 if (isSkillRelated) {
                     const skillEventRowId = generateId();
-                    const isDispatch = isAgentSkillDispatch(tc.toolName, tc.argsJson);
-                    const eventType = isDispatch ? 'dispatch' : getSkillEventType(tc.toolName);
-                    const skillName = isDispatch ? extractDispatchSkillName(tc.argsJson) : extractSkillName(tc.toolName, tc.argsJson);
-                    const skillVersion = isDispatch ? null : extractSkillVersion(tc.argsJson);
+                    const eventType = getSkillEventType(tc.toolName);
+                    const skillName = extractSkillName(tc.toolName, tc.argsJson);
+                    const skillVersion = extractSkillVersion(tc.argsJson);
                     const success = (tc.state === 'ok' || tc.state === 'completed') && !errMsg;
                     const skillEventRow = {
                         id: skillEventRowId,

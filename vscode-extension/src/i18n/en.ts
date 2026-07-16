@@ -46,6 +46,13 @@ const en: Record<string, string> = {
   'import.autoOption': '$(home) Auto-detect ~/.claude/projects',
   'import.autoDesc': 'Auto-find Claude Code session files',
 
+  // ── Import: mode selection (step 1) ──
+  'import.mode.selectMode': 'Select import mode',
+  'import.mode.autoLabel': '$(symbol-search) Auto-detect',
+  'import.mode.autoDesc': 'Scan default locations for sessions',
+  'import.mode.manualLabel': '$(folder-opened) Manual import',
+  'import.mode.manualDesc': 'Browse or select specific files to import',
+
   // ── Import: Claude Code ──
   'import.claude.progress': 'Importing Claude Code sessions...',
   'import.claude.dirNotFound': 'Claude Code projects directory not found. Expected: {0}',

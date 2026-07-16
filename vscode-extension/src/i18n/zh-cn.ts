@@ -46,6 +46,13 @@ const zhCN: Record<string, string> = {
   'import.autoOption': '$(home) 自动检测 ~/.claude/projects',
   'import.autoDesc': '自动查找 Claude Code 会话文件',
 
+  // ── Import: mode selection (step 1) ──
+  'import.mode.selectMode': '选择导入模式',
+  'import.mode.autoLabel': '$(symbol-search) 自动检测',
+  'import.mode.autoDesc': '扫描默认位置的会话文件',
+  'import.mode.manualLabel': '$(folder-opened) 手动导入',
+  'import.mode.manualDesc': '浏览并选择要导入的具体文件',
+
   // ── Import: Claude Code ──
   'import.claude.progress': '正在导入 Claude Code 会话...',
   'import.claude.dirNotFound': '未找到 Claude Code 项目目录。期望路径: {0}',
