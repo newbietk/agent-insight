@@ -154,6 +154,7 @@ async function handleCodeAgentImport(storage: import('./storage/db').Storage): P
   }
 
   const picked = await pickJsonlFiles(filePaths, t('agent.codeAgent'));
+  if (picked === undefined) return; // User canceled the picker
   if (!picked || picked.length === 0) return;
 
   const { importJsonlFile } = require('./importer');
@@ -217,6 +218,7 @@ async function handleClaudeImport(storage: import('./storage/db').Storage): Prom
     const claudeFiles = fs.existsSync(claudeDir) ? findJsonlFiles(claudeDir) : [];
     if (claudeFiles.length > 0) {
       const picked = await pickJsonlFiles(claudeFiles, t('import.claude.codeLabel'));
+      if (picked === undefined) return; // User canceled the picker
       if (picked) filePaths.push(...picked);
     }
 

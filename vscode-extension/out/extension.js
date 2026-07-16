@@ -168,6 +168,8 @@ async function handleCodeAgentImport(storage) {
         return;
     }
     const picked = await pickJsonlFiles(filePaths, (0, i18n_1.t)('agent.codeAgent'));
+    if (picked === undefined)
+        return; // User canceled the picker
     if (!picked || picked.length === 0)
         return;
     const { importJsonlFile } = require('./importer');
@@ -221,6 +223,8 @@ async function handleClaudeImport(storage) {
         const claudeFiles = fs.existsSync(claudeDir) ? findJsonlFiles(claudeDir) : [];
         if (claudeFiles.length > 0) {
             const picked = await pickJsonlFiles(claudeFiles, (0, i18n_1.t)('import.claude.codeLabel'));
+            if (picked === undefined)
+                return; // User canceled the picker
             if (picked)
                 filePaths.push(...picked);
         }
