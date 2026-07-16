@@ -174,9 +174,8 @@ async function handleCodeAgentImport(storage: import('./storage/db').Storage): P
       for (const p of picked) {
         try {
           const result = await importJsonlFile(storage, p);
-          if (result === 'ok') imported++;
-          else if (result === 'skip') skipped++;
-          else errors.push(path.basename(p) + ': ' + result);
+          if (result) imported++;
+          else skipped++;
         } catch (e: any) {
           errors.push(path.basename(p) + ': ' + e.message);
         }
