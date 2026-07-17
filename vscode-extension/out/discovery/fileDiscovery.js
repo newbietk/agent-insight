@@ -48,16 +48,6 @@ const os = __importStar(require("node:os"));
 const fs = __importStar(require("node:fs"));
 const i18n_1 = require("../i18n");
 // ── JSONL file discovery ─────────────────────────────────────
-/** Check whether a directory directly contains any .jsonl files (non-recursive). */
-function dirHasJsonl(dirPath) {
-    try {
-        const entries = fs.readdirSync(dirPath, { withFileTypes: true });
-        return entries.some(e => e.isFile() && e.name.endsWith('.jsonl'));
-    }
-    catch {
-        return false;
-    }
-}
 function findJsonlFiles(dirPath, visited) {
     const results = [];
     try {
@@ -72,13 +62,9 @@ function findJsonlFiles(dirPath, visited) {
         for (const entry of entries) {
             const full = path.join(dirPath, entry.name);
             if (entry.isDirectory()) {
-                // Only skip 'subagents' directories that are direct children of a
-                // Claude Code project root (a directory containing .jsonl files).
-                // In Claude Code, .claude/projects/<name>/subagents/ stores nested
-                // agent sessions that re-use the same JSONL as the parent — skipping
-                // them avoids double-counting. Legitimate user directories named
-                // 'subagents' elsewhere are still traversed.
-                if (entry.name === 'subagents' && dirHasJsonl(dirPath))
+                // Skip 'subagents' directories — in Claude Code these store nested
+                // agent sessions that are now merged into the parent during import.
+                if (entry.name === 'subagents')
                     continue;
                 results.push(...findJsonlFiles(full, visited));
             }
@@ -92,7 +78,7 @@ function findJsonlFiles(dirPath, visited) {
     }
     return results;
 }
-/** Extract title + firstQuery + model from file header in one 8KB pass. */
+/** Extract title + firstQuery + firstAssistant + model from file header in one 8KB pass. */
 async function extractSessionMetaAsync(filePath) {
     try {
         const fd = await fs.promises.open(filePath, 'r');
@@ -101,13 +87,14 @@ async function extractSessionMetaAsync(filePath) {
         await fd.close();
         const content = buf.toString('utf-8', 0, bytesRead);
         if (!content.trim())
-            return { title: null, firstQuery: null, model: null };
+            return { title: null, firstQuery: null, firstAssistant: null, model: null };
         let title = null;
         let firstQuery = null;
+        let firstAssistant = null;
         let model = null;
         const lines = content.split('\n');
         for (const line of lines) {
-            if (title && firstQuery && model)
+            if (title && firstQuery && firstAssistant && model)
                 break;
             if (!line.trim())
                 continue;
@@ -139,16 +126,30 @@ async function extractSessionMetaAsync(filePath) {
                         }
                     }
                 }
+                // First assistant text — fallback label for sessions without title or user text
+                if (!firstAssistant && obj.type === 'assistant' && obj.message) {
+                    const msg = obj.message;
+                    if (typeof msg.content === 'string')
+                        firstAssistant = msg.content.substring(0, 120);
+                    else if (Array.isArray(msg.content)) {
+                        for (const block of msg.content) {
+                            if (block.type === 'text' && block.text) {
+                                firstAssistant = block.text.substring(0, 120);
+                                break;
+                            }
+                        }
+                    }
+                }
                 if (!model && obj.type === 'assistant' && obj.message?.model) {
                     model = obj.message.model;
                 }
             }
             catch { /* skip malformed */ }
         }
-        return { title, firstQuery, model };
+        return { title, firstQuery, firstAssistant, model };
     }
     catch {
-        return { title: null, firstQuery: null, model: null };
+        return { title: null, firstQuery: null, firstAssistant: null, model: null };
     }
 }
 async function pickJsonlFiles(filePaths, sourceLabel) {
@@ -175,7 +176,7 @@ async function pickJsonlFiles(filePaths, sourceLabel) {
     // Build items: title as label, no tooltip, simple and reliable
     const items = sorted.map((fp, i) => {
         const meta = metas[i];
-        const title = meta.title || meta.firstQuery || path.basename(fp, '.jsonl');
+        const title = meta.title || meta.firstQuery || meta.firstAssistant || path.basename(fp, '.jsonl');
         return {
             label: title.length > 80 ? title.substring(0, 80) + '…' : title,
             description: meta.model ? `${sourceLabel} · ${meta.model}` : sourceLabel,

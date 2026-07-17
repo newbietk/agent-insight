@@ -45,6 +45,7 @@ const normalize_1 = require("./core/normalize");
 const turn_split_1 = require("./core/turn-split");
 const i18n_1 = require("./i18n");
 const path = __importStar(require("node:path"));
+const fs = __importStar(require("node:fs"));
 function generateId() {
     const ts = Date.now().toString(36);
     const rand = Math.random().toString(36).substring(2, 8);
@@ -97,6 +98,43 @@ function computeAggregates(turns, toolCalls, skillEvents) {
         totalSkillLoadCount: skillEvents.length,
         totalSubagentCount: uniqueSubIds.size,
     };
+}
+/**
+ * Merge subagent JSONL interactions into the parent session's interaction stream.
+ * Mirrors the parent project's data-service.ts subagent merge logic.
+ * Subagent interactions are annotated with subagent_session_id/subagent_name/subagent_type
+ * so they flow through normalize→turn-split as part of the parent session.
+ */
+function mergeSubagentInteractions(rawInteractions, sourcePath, taskId) {
+    const merged = [...rawInteractions];
+    const subagentFiles = (0, claude_jsonl_1.listSubagentSessions)(sourcePath, taskId);
+    if (subagentFiles.length === 0)
+        return merged;
+    for (const sub of subagentFiles) {
+        // Read .meta.json for subagent metadata (name, type)
+        const metaPath = sub.filePath.replace('.jsonl', '.meta.json');
+        let subName = null;
+        let subType = null;
+        try {
+            if (fs.existsSync(metaPath)) {
+                const meta = JSON.parse(fs.readFileSync(metaPath, 'utf-8'));
+                subName = meta.name || meta.agentType || meta.description || null;
+                subType = meta.agentType || null;
+            }
+        }
+        catch { /* ignore */ }
+        // Read subagent JSONL and annotate interactions
+        const subInteractions = (0, claude_jsonl_1.readSession)(sub.filePath, sub.id);
+        for (const interaction of subInteractions) {
+            interaction.subagent_session_id = sub.id;
+            if (subName)
+                interaction.subagent_name = subName;
+            if (subType)
+                interaction.subagent_type = subType;
+        }
+        merged.push(...subInteractions);
+    }
+    return merged;
 }
 /** Shared pipeline: raw interactions → normalize → turn-split → storage write. */
 function pipelineImport(storage, rawInteractions, sourceType, framework, taskId, sourcePath, title) {
@@ -219,8 +257,10 @@ function importJsonlFile(storage, filePath) {
         throw new Error((0, i18n_1.t)('import.error.alreadyImported', taskId));
     }
     const rawInteractions = (0, claude_jsonl_1.readSession)(filePath, taskId);
+    // Merge subagent interactions into the parent stream
+    const mergedInteractions = mergeSubagentInteractions(rawInteractions, filePath, taskId);
     const title = (0, claude_jsonl_1.extractSessionTitle)(filePath);
-    return pipelineImport(storage, rawInteractions, 'claude-jsonl', 'claude-code', taskId, filePath, title);
+    return pipelineImport(storage, mergedInteractions, 'claude-jsonl', 'claude-code', taskId, filePath, title);
 }
 /**
  * Import a single OpenCode session into storage.
@@ -296,6 +336,10 @@ async function syncSession(storage, sessionId) {
     }
     else {
         rawInteractions = (0, claude_jsonl_1.readSession)(session.sourcePath, session.taskId);
+        // Merge subagent interactions for Claude Code sessions
+        if (sourceType === 'claude-jsonl') {
+            rawInteractions = mergeSubagentInteractions(rawInteractions, session.sourcePath, session.taskId);
+        }
     }
     if (rawInteractions.length === 0) {
         storage.updateSyncTimestamp(sessionId, new Date().toISOString());
