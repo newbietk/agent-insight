@@ -57,8 +57,8 @@ async function handleJsonlImport(storage, mode, config) {
             return;
         }
         filePaths = (0, fileDiscovery_1.findJsonlFiles)(autoDir);
-        if (fileExclude) {
-            filePaths = filePaths.filter(f => path.basename(f) !== fileExclude);
+        if (fileExclude && fileExclude.length > 0) {
+            filePaths = filePaths.filter(f => !fileExclude.includes(path.basename(f)));
         }
         if (filePaths.length === 0) {
             vscode.window.showInformationMessage((0, i18n_1.t)(`${i18nPrefix}.noFiles`, autoDir));
@@ -96,8 +96,8 @@ async function handleJsonlImport(storage, mode, config) {
             if (!uris || uris.length === 0)
                 return;
             filePaths = (0, fileDiscovery_1.findJsonlFiles)(uris[0].fsPath);
-            if (fileExclude) {
-                filePaths = filePaths.filter(f => path.basename(f) !== fileExclude);
+            if (fileExclude && fileExclude.length > 0) {
+                filePaths = filePaths.filter(f => !fileExclude.includes(path.basename(f)));
             }
             if (filePaths.length === 0) {
                 vscode.window.showInformationMessage((0, i18n_1.t)('import.claude.noFilesSelected'));
@@ -180,7 +180,7 @@ async function handleCodeAgentImport(storage, mode) {
     await handleJsonlImport(storage, mode, {
         i18nPrefix: 'import.codeagent',
         autoDir: path.join(os.homedir(), '.cac', 'projects'),
-        fileExclude: 'obs.jsonl',
+        fileExclude: ['obs.jsonl', 'observable-cac.jsonl'],
         pickerLabelKey: 'agent.codeAgent',
         manualI18nPrefix: 'import.codeagent',
         cancellable: false,

@@ -17,8 +17,8 @@ interface JsonlImportConfig {
   i18nPrefix: string;
   /** Auto-detect directory path. */
   autoDir: string;
-  /** File names to exclude from auto-detect (e.g., 'obs.jsonl'). */
-  fileExclude?: string;
+  /** File names to exclude from auto-detect. */
+  fileExclude?: string[];
   /** i18n key for the picker source label. */
   pickerLabelKey: string;
   /** i18n key prefix for manual mode sub-choice. Use '' to fall back to generic Claude keys. */
@@ -45,8 +45,8 @@ async function handleJsonlImport(
       return;
     }
     filePaths = findJsonlFiles(autoDir);
-    if (fileExclude) {
-      filePaths = filePaths.filter(f => path.basename(f) !== fileExclude);
+    if (fileExclude && fileExclude.length > 0) {
+      filePaths = filePaths.filter(f => !fileExclude.includes(path.basename(f)));
     }
     if (filePaths.length === 0) {
       vscode.window.showInformationMessage(t(`${i18nPrefix}.noFiles`, autoDir));
@@ -83,8 +83,8 @@ async function handleJsonlImport(
       });
       if (!uris || uris.length === 0) return;
       filePaths = findJsonlFiles(uris[0].fsPath);
-      if (fileExclude) {
-        filePaths = filePaths.filter(f => path.basename(f) !== fileExclude);
+      if (fileExclude && fileExclude.length > 0) {
+        filePaths = filePaths.filter(f => !fileExclude.includes(path.basename(f)));
       }
       if (filePaths.length === 0) {
         vscode.window.showInformationMessage(t('import.claude.noFilesSelected'));
@@ -194,7 +194,7 @@ export async function handleCodeAgentImport(
   await handleJsonlImport(storage, mode, {
     i18nPrefix: 'import.codeagent',
     autoDir: path.join(os.homedir(), '.cac', 'projects'),
-    fileExclude: 'obs.jsonl',
+    fileExclude: ['obs.jsonl', 'observable-cac.jsonl'],
     pickerLabelKey: 'agent.codeAgent',
     manualI18nPrefix: 'import.codeagent',
     cancellable: false,
