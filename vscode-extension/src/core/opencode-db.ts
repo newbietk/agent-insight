@@ -151,6 +151,7 @@ export async function listSessions(dbPath: string): Promise<SessionListItem[]> {
         id: session.id,
         createdAt: new Date(session.time_created).toISOString(),
         firstQuery,
+        title: session.title || null,
         turnCount,
         modelName,
         version: session.version,
@@ -164,6 +165,24 @@ export async function listSessions(dbPath: string): Promise<SessionListItem[]> {
 }
 
 // ── Session reading ────────────────────────────────────────
+
+/** Get the session title from an OpenCode database. */
+export async function getSessionTitle(dbPath: string, sessionId: string): Promise<string | null> {
+  let db: CompatDB;
+  try {
+    db = await CompatDB.open(dbPath, { readOnly: true });
+  } catch {
+    return null;
+  }
+  try {
+    const row = db.prepare('SELECT title FROM session WHERE id = ?').get(sessionId) as { title: string } | undefined;
+    return row?.title || null;
+  } catch {
+    return null;
+  } finally {
+    db.close();
+  }
+}
 
 export async function readSession(dbPath: string, sessionId: string): Promise<RawInteraction[]> {
   let db: CompatDB;

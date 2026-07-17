@@ -10,6 +10,8 @@ export interface SessionListItem {
   id: string;
   createdAt: string;
   firstQuery: string | null;
+  /** Agent-generated title (e.g. Claude Code ai-title, OpenCode session.title). Preferred over firstQuery for display. */
+  title: string | null;
   turnCount: number;
   modelName: string | null;
   version?: string | null;

@@ -194,6 +194,7 @@ export function listSessions(dirPath: string): SessionListItem[] {
     if (lines.length === 0) continue;
 
     let firstQuery: string | null = null;
+    let title: string | null = null;
     let modelName: string | null = null;
     let createdAt: string;
 
@@ -210,6 +211,10 @@ export function listSessions(dirPath: string): SessionListItem[] {
           firstQuery = text.substring(0, 200);
         }
       }
+      if (line.type === 'ai-title' && !title && line.message) {
+        const titleText = extractTextContent(line.message.content);
+        if (titleText) title = titleText.substring(0, 200);
+      }
       if (line.type === 'assistant' && line.message?.model) {
         if (!modelName) {
           modelName = line.message.model;
@@ -221,6 +226,7 @@ export function listSessions(dirPath: string): SessionListItem[] {
       id: sessionId,
       createdAt,
       firstQuery,
+      title,
       turnCount: lines.length,
       modelName,
     });
@@ -384,6 +390,41 @@ function groupAssistantLines(lines: ClaudeJsonlLine[]): AssistantGroup[] {
   }
   if (current) groups.push(current);
   return groups;
+}
+
+/** Extract the first ai-title line content from a Claude Code JSONL file. */
+export function extractSessionTitle(filePath: string): string | null {
+  try {
+    if (!filePath || !fs.existsSync(filePath)) return null;
+    const stat = fs.statSync(filePath);
+    if (!stat.isFile()) return null;
+    // Only scan first 8KB — ai-title always appears early
+    const fd = fs.openSync(filePath, 'r');
+    const buf = Buffer.alloc(8192);
+    const bytesRead = fs.readSync(fd, buf, 0, buf.length, 0);
+    fs.closeSync(fd);
+    const content = buf.toString('utf-8', 0, bytesRead);
+    if (!content.trim()) return null;
+
+    const lines = content.split('\n');
+    for (const line of lines) {
+      if (!line.trim()) continue;
+      try {
+        const obj = JSON.parse(line);
+        if (obj.type === 'ai-title' && obj.message) {
+          const text = typeof obj.message.content === 'string'
+            ? obj.message.content
+            : (Array.isArray(obj.message.content)
+              ? obj.message.content.find((b: any) => b.type === 'text')?.text
+              : null);
+          if (text) return text.substring(0, 200);
+        }
+      } catch { /* skip */ }
+    }
+    return null;
+  } catch {
+    return null;
+  }
 }
 
 export function readSession(filePath: string, sessionId: string): RawInteraction[] {

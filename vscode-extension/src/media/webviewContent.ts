@@ -229,6 +229,14 @@ function __(key) {
   .turn-card-subagent { background: rgba(224,154,107,0.04); border-left: 3px solid var(--orange); padding-left: 9px; }
   .turn-card-subagent:hover { background: rgba(224,154,107,0.08); }
   .turn-card-subagent.selected { background: rgba(224,154,107,0.12); border-left-color: var(--accent); }
+  .turn-card-role-user { background: rgba(78,201,176,0.05); }
+  .turn-card-role-user:hover { background: rgba(78,201,176,0.10); }
+  .turn-card-role-assistant { background: rgba(86,156,214,0.05); }
+  .turn-card-role-assistant:hover { background: rgba(86,156,214,0.10); }
+  .turn-card-role-system { background: rgba(197,134,192,0.04); }
+  .turn-card-role-system:hover { background: rgba(197,134,192,0.08); }
+  .turn-card-role-tool { background: rgba(220,220,170,0.04); }
+  .turn-card-role-tool:hover { background: rgba(220,220,170,0.08); }
   .turn-card-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px; }
   .turn-card-role { font-size: 11px; font-weight: 600; }
   .turn-card-index { font-size: 10px; color: var(--text-dim); }
@@ -615,6 +623,88 @@ function __(key) {
     transition: background 0.1s;
   }
   .turn-row-sub:hover { background: rgba(255,255,255,0.03); }
+
+  /* ── Turns filter bar ── */
+  .turns-filter-bar {
+    padding: 6px 8px; border-bottom: 1px solid var(--border);
+    background: var(--card-bg); display: flex; flex-direction: column; gap: 6px;
+    flex-shrink: 0;
+  }
+  .turns-filter-roles { display: flex; gap: 3px; flex-shrink: 0; }
+  .filter-role-chip {
+    display: inline-flex; align-items: center; gap: 3px;
+    padding: 3px 9px; border-radius: 4px;
+    font-size: 12px; cursor: pointer; user-select: none;
+    border: 1px solid transparent; color: var(--text-dim);
+    background: transparent; font-family: inherit;
+    transition: background 0.15s, color 0.15s, border-color 0.15s;
+    line-height: 1;
+  }
+  .filter-role-chip:hover { background: rgba(255,255,255,0.06); color: var(--text); }
+  .filter-role-chip.active {
+    background: var(--accent); color: #fff; border-color: var(--accent);
+  }
+  .filter-role-count {
+    font-size: 9px; opacity: 0.7; font-weight: 600;
+    min-width: 14px; text-align: center;
+  }
+  .filter-role-chip.active .filter-role-count { opacity: 1; }
+
+  .turns-filter-search { display: flex; gap: 4px; flex: 1; min-width: 0; position: relative; }
+  .turns-filter-search input {
+    flex: 1; padding: 6px 10px; background: rgba(255,255,255,0.03);
+    border: 1px solid var(--border); border-radius: 4px;
+    color: var(--text); font-size: 11px; font-family: inherit;
+    min-width: 0; line-height: 1.4;
+  }
+  .turns-filter-search input::placeholder { color: var(--text-dim); font-size: 10px; }
+  .turns-filter-search input:focus { outline: none; border-color: var(--accent); background: rgba(255,255,255,0.05); }
+  .search-clear-btn {
+    padding: 4px 8px; border: none; background: transparent;
+    color: var(--text-dim); cursor: pointer; font-size: 12px;
+    border-radius: 4px; font-family: inherit;
+  }
+  .search-clear-btn:hover { color: var(--text); background: rgba(255,255,255,0.05); }
+
+  /* ── LLM Input message cards ── */
+  .llm-input-section { margin-bottom: 16px; }
+  .llm-input-msg-card {
+    border-left: 3px solid; margin: 4px 0; padding: 0;
+    background: rgba(255,255,255,0.02); border-radius: 0 4px 4px 0;
+    overflow: hidden;
+  }
+  .llm-input-msg-header {
+    display: flex; align-items: center; gap: 6px; padding: 6px 10px;
+    cursor: pointer; user-select: none; font-size: 11px;
+    transition: background 0.1s;
+  }
+  .llm-input-msg-header:hover { background: rgba(255,255,255,0.03); }
+  .llm-input-role-dot {
+    width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0;
+  }
+  .llm-input-role-badge {
+    font-size: 10px; font-weight: 600; flex-shrink: 0; min-width: 70px;
+  }
+  .llm-input-msg-index {
+    font-size: 10px; color: var(--text-dim); font-family: monospace; flex-shrink: 0;
+  }
+  .llm-input-msg-preview {
+    flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    color: var(--text-dim); font-size: 11px; min-width: 0;
+  }
+  .llm-input-msg-tokens {
+    font-size: 10px; color: var(--text-dim); flex-shrink: 0;
+    font-variant-numeric: tabular-nums;
+  }
+  .llm-input-msg-body {
+    display: none; padding: 0; border-top: 1px solid rgba(62,62,66,0.15);
+  }
+  .llm-input-msg-body .td-content-pre {
+    margin: 0; border: none; border-radius: 0; max-height: 300px;
+  }
+  .llm-input-copy-btn {
+    margin: 4px 8px 8px 8px; font-size: 10px;
+  }
 </style>
 </head>
 <body>
@@ -739,7 +829,7 @@ function switchTab(name) {
     if (name === 'audit') initAuditTab();
     if (name === 'skills') renderSkills();
     if (name === 'fileops') renderFileOps();
-    if (name === 'turns') renderTurnCards(null);
+    if (name === 'turns') renderTurnCards();
   }, 10);
 }
 
@@ -771,7 +861,7 @@ function initAll() {
   }
   // Render initial state for all visible tabs
   renderOverviewCards();
-  renderTurnCards(null);
+  renderTurnCards();
   drawTokenTrendChart();
 }
 

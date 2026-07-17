@@ -1,6 +1,7 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.listSessions = listSessions;
+exports.getSessionTitle = getSessionTitle;
 exports.readSession = readSession;
 const compat_db_1 = require("../storage/compat-db");
 // ── SQLite parameter limit safe-guard ───────────────────────
@@ -125,6 +126,7 @@ async function listSessions(dbPath) {
                 id: session.id,
                 createdAt: new Date(session.time_created).toISOString(),
                 firstQuery,
+                title: session.title || null,
                 turnCount,
                 modelName,
                 version: session.version,
@@ -137,6 +139,26 @@ async function listSessions(dbPath) {
     }
 }
 // ── Session reading ────────────────────────────────────────
+/** Get the session title from an OpenCode database. */
+async function getSessionTitle(dbPath, sessionId) {
+    let db;
+    try {
+        db = await compat_db_1.CompatDB.open(dbPath, { readOnly: true });
+    }
+    catch {
+        return null;
+    }
+    try {
+        const row = db.prepare('SELECT title FROM session WHERE id = ?').get(sessionId);
+        return row?.title || null;
+    }
+    catch {
+        return null;
+    }
+    finally {
+        db.close();
+    }
+}
 async function readSession(dbPath, sessionId) {
     let db;
     try {

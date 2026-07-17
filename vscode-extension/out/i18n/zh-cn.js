@@ -192,6 +192,7 @@ const zhCN = {
     'turnDetail.traceAction': '追踪此轮次',
     'turnDetail.contextAction': '查看上下文',
     // ── Import errors ──
+    'import.failed': '导入失败: {0}',
     'import.error.alreadyImported': '会话「{0}」已导入。请先删除后再重新导入。',
     // ── Sync ──
     'sync.selectSession': '选择要同步的会话',

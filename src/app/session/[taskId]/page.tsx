@@ -29,7 +29,7 @@ import { WorkflowAIView } from "@/components/observe/WorkflowAIView"
 import { WorkflowAnalyseTab } from "@/components/observe/WorkflowAnalyseTab"
 import { TraceView } from "@/components/observe/TraceView"
 import { ContextTracker } from "@/components/observe/ContextTracker"
-import { FileReadAnalysis } from "@/components/observe/FileReadAnalysis"
+import { FileOpsTimeline } from "@/components/observe/FileOpsTimeline"
 import { AgentCallGraph } from "@/components/observe/AgentCallGraph"
 import { AgentRelationGraph } from "@/components/observe/AgentRelationGraph"
 import { ChatReplayView } from "@/components/observe/ChatReplayView"
@@ -269,7 +269,7 @@ const ALL_TABS: Array<{ key: TabKey; label: string; icon: React.ReactNode; highl
   { key: "context", label: "Context", icon: <BarChart3Icon className="size-3.5 text-pink-500" /> },
   { key: "workflowAnalyse", label: "Audit", icon: <ShieldCheckIcon className="size-3.5 text-emerald-500" />, highlight: true },
   { key: "skills", label: "Skills", icon: <SparklesIcon className="size-3.5 text-orange-500" /> },
-  { key: "fileReads", label: "File Reads", icon: <FileSearchIcon className="size-3.5 text-teal-500" /> },
+  { key: "fileReads", label: "操作审计", icon: <FileSearchIcon className="size-3.5 text-teal-500" /> },
   { key: "workflow", label: "Workflow", icon: <GitBranchIcon className="size-3.5 text-violet-500" />, highlight: true },
   { key: "subagents", label: "Subagents", icon: <UsersIcon className="size-3.5 text-cyan-500" /> },
   { key: "interactions", label: "Interactions", icon: <MessageSquareIcon className="size-3.5 text-emerald-500" /> },
@@ -1547,7 +1547,7 @@ export default function SessionDetailPage({
   function renderFileReads() {
     return (
       <div className="flex-1 min-h-0 overflow-hidden flex flex-col">
-        <FileReadAnalysis
+        <FileOpsTimeline
           taskId={taskId}
           onNavigateToTurn={(turnId) => {
             setSelectedTurnId(turnId)
@@ -1745,7 +1745,7 @@ export default function SessionDetailPage({
       </div>
 
       {activeTab !== "trace" && (
-        <div className="flex-1 min-h-0">
+        <div className="flex-1 min-h-0 flex flex-col overflow-hidden">
           {TAB_RENDERERS[activeTab]()}
         </div>
       )}

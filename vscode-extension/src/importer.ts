@@ -1,5 +1,5 @@
-import { readSession, listSessions as listClaudeSessions, collectSubagentToolUseMappings } from './core/claude-jsonl';
-import { readSession as opencodeReadSession, listSessions as opencodeListSessions } from './core/opencode-db';
+import { readSession, listSessions as listClaudeSessions, collectSubagentToolUseMappings, extractSessionTitle } from './core/claude-jsonl';
+import { readSession as opencodeReadSession, listSessions as opencodeListSessions, getSessionTitle } from './core/opencode-db';
 import { normalize } from './core/normalize';
 import { splitIntoTurns } from './core/turn-split';
 import type { TurnRow, ToolCallRow, SkillEventRow } from './core/turn-split';
@@ -95,6 +95,7 @@ function pipelineImport(
   framework: string,
   taskId: string,
   sourcePath: string,
+  title?: string | null,
 ): ImportResult | null {
   if (rawInteractions.length === 0) return null;
 
@@ -105,12 +106,14 @@ function pipelineImport(
 
   const sessionId = generateId();
   const firstUserTurn = turns.find(t => t.role === 'user');
+  const firstQuery = firstUserTurn?.content?.substring(0, 200) ?? null;
   const session: SessionRow = {
     ...agg,
     id: sessionId,
     taskId,
-    label: firstUserTurn?.contentSummary ?? null,
-    query: firstUserTurn?.content?.substring(0, 200) ?? null,
+    // Prefer agent-generated title over first user query for display label
+    label: title || (firstUserTurn?.contentSummary ?? null),
+    query: firstQuery,
     framework,
     sourcePath,
     sourceType,
@@ -239,7 +242,8 @@ export function importJsonlFile(
   }
 
   const rawInteractions = readSession(filePath, taskId);
-  return pipelineImport(storage, rawInteractions, 'claude-jsonl', 'claude-code', taskId, filePath);
+  const title = extractSessionTitle(filePath);
+  return pipelineImport(storage, rawInteractions, 'claude-jsonl', 'claude-code', taskId, filePath, title);
 }
 
 /**
@@ -256,7 +260,8 @@ export async function importOpenCodeSession(
   }
 
   const rawInteractions = await opencodeReadSession(dbPath, sessionId);
-  return pipelineImport(storage, rawInteractions, 'opencode-db', 'opencode', sessionId, dbPath);
+  const title = await getSessionTitle(dbPath, sessionId);
+  return pipelineImport(storage, rawInteractions, 'opencode-db', 'opencode', sessionId, dbPath, title);
 }
 
 /**
@@ -266,7 +271,7 @@ export async function listOpenCodeSessions(dbPath: string): Promise<Array<{ id: 
   const sessions = await opencodeListSessions(dbPath);
   return sessions.map(s => ({
     id: s.id,
-    label: s.firstQuery?.substring(0, 100) ?? null,
+    label: (s.title || s.firstQuery)?.substring(0, 100) ?? null,
     model: s.modelName,
   }));
 }
@@ -278,7 +283,7 @@ export function scanClaudeSessions(dirPath: string): Array<{ taskId: string; lab
   const sessions = listClaudeSessions(dirPath);
   return sessions.map(s => ({
     taskId: s.id,
-    label: s.firstQuery?.substring(0, 100) ?? null,
+    label: (s.title || s.firstQuery)?.substring(0, 100) ?? null,
     model: s.modelName,
   }));
 }

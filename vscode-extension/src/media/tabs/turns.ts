@@ -15,6 +15,13 @@ export function renderTurnsTab(): string {
         <span>${escHtml(t('detail.allTurns'))}</span>
         <span style="font-size:10px;color:var(--text-dim);font-weight:400">${escHtml(t('detail.clickRowHint'))}</span>
       </div>
+      <div class="turns-filter-bar" id="turnsFilterBar">
+        <div class="turns-filter-roles" id="turnsRoleChips"></div>
+        <div class="turns-filter-search">
+          <input type="text" id="turnsSearchInput" placeholder="Search content or tool name...">
+          <button id="turnsSearchClear" class="search-clear-btn" style="display:none" title="Clear">✕</button>
+        </div>
+      </div>
       <div class="turns-card-list" id="turnsCardList"></div>
     </div>
 
@@ -44,6 +51,12 @@ export function renderTurnsJS(): string {
 // Track currently selected turn and active context role filter
 var selectedTurnId = null;
 var activeCtxRole = null; // which role's messages are expanded: 'system'|'user'|'assistant'|'tool'|null
+
+// ── Filter state ──
+var activeRoleFilter = null;    // null = All; 'user'|'assistant'|'system'|'tool'
+var searchKeyword = '';
+var searchTimer = null;         // debounce timer
+var filterSubagentSessionId = null; // set via navigation: subagentSessionId
 
 // Role color mapping for context composition
 var ROLE_COLORS = {
@@ -82,21 +95,25 @@ var subTurnsBySession = {};
   }
 })();
 
-function renderTurnCards(filterSubagentSessionId) {
+function renderTurnCards() {
   var list = document.getElementById('turnsCardList');
   if (!list) return;
 
-  var html = '';
-  var filtered = [];
-  for (var i = 0; i < turns.length; i++) {
-    if (filterSubagentSessionId) {
-      if (turns[i].subagentSessionId !== filterSubagentSessionId) continue;
-    }
-    filtered.push(turns[i]);
+  // Lazy-init filter bar on first render
+  if (!window.__turnsFilterReady) {
+    initFilterBar();
+    window.__turnsFilterReady = true;
   }
 
+  // Full filtering pipeline
+  var filtered = applyFilterPipeline(turns);
+  var html = '';
+
   if (filtered.length === 0) {
-    list.innerHTML = '<div class="empty-state" style="padding:24px"><div class="icon">📭</div>' + __('turns.noTurns') + '</div>';
+    var emptyMsg = searchKeyword || activeRoleFilter || filterSubagentSessionId
+      ? (__('turns.noFilterResults') || 'No matching turns')
+      : (__('turns.noTurns'));
+    list.innerHTML = '<div class="empty-state" style="padding:24px"><div class="icon">📭</div>' + emptyMsg + '</div>';
     return;
   }
 
@@ -117,7 +134,8 @@ function renderTurnCards(filterSubagentSessionId) {
 
     var selectedCls = (selectedTurnId === t.id) ? ' selected' : '';
     var subagentCls = t.isSubagent ? ' turn-card-subagent' : '';
-    html += '<div class="turn-card' + selectedCls + subagentCls + '" data-turn-id="' + esc(t.id) + '">' +
+    var roleCls = ' turn-card-role-' + t.role;
+    html += '<div class="turn-card' + selectedCls + subagentCls + roleCls + '" data-turn-id="' + esc(t.id) + '">' +
       '<div class="turn-card-top">' +
         '<span class="turn-card-role" style="color:' + roleColor + '">' + roleIcon + ' ' + esc(t.role) + '</span>' +
         '<span class="turn-card-index">#' + (t.turnIndex + 1) + '</span>' +
@@ -248,7 +266,8 @@ function renderTurnCards(filterSubagentSessionId) {
       e.stopPropagation();
       var tid = this.getAttribute('data-turn-select');
       if (tid) {
-        renderTurnCards(null);
+        filterSubagentSessionId = null;
+        renderTurnCards();
         selectTurn(tid);
         // Scroll to the selected card
         setTimeout(function() {
@@ -273,6 +292,129 @@ function renderTurnCards(filterSubagentSessionId) {
     });
   });
 
+}
+
+// ── Filter pipeline: combines subagent scope + role + keyword ──
+function applyFilterPipeline(source) {
+  var result = [];
+  for (var i = 0; i < source.length; i++) {
+    var t = source[i];
+    // Subagent scope filter
+    if (filterSubagentSessionId) {
+      if (t.subagentSessionId !== filterSubagentSessionId) continue;
+    }
+    // Role filter
+    if (activeRoleFilter && t.role !== activeRoleFilter) continue;
+    // Keyword search (contentSummary + tool names)
+    if (searchKeyword) {
+      var kw = searchKeyword.toLowerCase();
+      var summary = (t.contentSummary || '').toLowerCase();
+      var match = summary.indexOf(kw) !== -1;
+      if (!match && t.toolCalls) {
+        for (var ti = 0; ti < t.toolCalls.length; ti++) {
+          var tn = (t.toolCalls[ti].toolName || '').toLowerCase();
+          if (tn.indexOf(kw) !== -1) { match = true; break; }
+        }
+      }
+      if (!match) continue;
+    }
+    result.push(t);
+  }
+  return result;
+}
+
+// ── Build dynamic role chips from turns data ──
+function initFilterBar() {
+  var chipsContainer = document.getElementById('turnsRoleChips');
+  if (!chipsContainer) return;
+
+  // Count per role
+  var counts = { user: 0, assistant: 0, system: 0, tool: 0 };
+  var total = 0;
+  for (var i = 0; i < turns.length; i++) {
+    var r = turns[i].role;
+    if (counts.hasOwnProperty(r)) { counts[r]++; total++; }
+    else total++;
+  }
+
+  var roles = [
+    { key: null,   icon: '⊞', label: '全部', count: total },
+    { key: 'user',      icon: '👤', label: '用户', count: counts.user },
+    { key: 'assistant', icon: '🤖', label: '助手', count: counts.assistant },
+  ];
+
+  var html = '';
+  for (var ri = 0; ri < roles.length; ri++) {
+    var r = roles[ri];
+    if (r.count === 0 && r.key !== null) continue;
+    var isActive = activeRoleFilter === r.key;
+    var cls = 'filter-role-chip' + (isActive ? ' active' : '');
+    html += '<button class="' + cls + '" data-role="' + (r.key || 'all') + '" title="' + esc(r.label) + '">'
+      + r.icon + ' <span class="filter-role-count">' + r.count + '</span></button>';
+  }
+  chipsContainer.innerHTML = html;
+
+  // Bind click handlers
+  chipsContainer.querySelectorAll('.filter-role-chip').forEach(function(chip) {
+    chip.addEventListener('click', function() {
+      var roleKey = this.getAttribute('data-role');
+      if (roleKey === 'all') {
+        activeRoleFilter = null;
+      } else if (activeRoleFilter === roleKey) {
+        activeRoleFilter = null;
+      } else {
+        activeRoleFilter = roleKey;
+      }
+      applyFilters();
+    });
+  });
+
+  // Bind search input
+  var searchInput = document.getElementById('turnsSearchInput');
+  var searchClear = document.getElementById('turnsSearchClear');
+  if (searchInput) {
+    searchInput.value = searchKeyword;
+    searchInput.addEventListener('input', function() {
+      if (searchTimer) clearTimeout(searchTimer);
+      var self = this;
+      searchTimer = setTimeout(function() {
+        searchKeyword = self.value.trim();
+        if (searchClear) searchClear.style.display = searchKeyword ? '' : 'none';
+        applyFilters();
+      }, 200);
+    });
+  }
+  if (searchClear) {
+    searchClear.style.display = searchKeyword ? '' : 'none';
+    searchClear.addEventListener('click', function() {
+      searchKeyword = '';
+      if (searchInput) searchInput.value = '';
+      searchClear.style.display = 'none';
+      applyFilters();
+    });
+  }
+}
+
+// ── Apply all filters and re-render ──
+function applyFilters() {
+  // Rebuild role chips to update active state
+  renderFilterChips();
+  // Re-render turn cards
+  renderTurnCards();
+}
+
+// ── Rebuild role chips (just visual state, counts don't change) ──
+function renderFilterChips() {
+  var chipsContainer = document.getElementById('turnsRoleChips');
+  if (!chipsContainer) return;
+
+  var chips = chipsContainer.querySelectorAll('.filter-role-chip');
+  chips.forEach(function(chip) {
+    var roleKey = chip.getAttribute('data-role');
+    var isActive = (roleKey === 'all' && !activeRoleFilter) || (roleKey === activeRoleFilter);
+    if (isActive) chip.classList.add('active');
+    else chip.classList.remove('active');
+  });
 }
 
 function selectTurn(turnId) {
@@ -683,6 +825,82 @@ function renderCompressionAlert(ctxData) {
   }
 }
 
+// ── LLM Input section (assistant turns only) ──
+
+var llmInputContents = {}; // storage for copy button content
+
+function renderLlmInputSection(turn) {
+  var ctxData = buildContextMessages(turn.id);
+  if (!ctxData || !ctxData.messages || ctxData.messages.length === 0) return '';
+
+  var ctxPct = turn.contextWindowPct != null ? toNumber(turn.contextWindowPct) : 0;
+  var totalEst = ctxData.totalEstimated;
+  var reportedIn = ctxData.reportedInput;
+  var displayTokens = reportedIn > 0 ? reportedIn : totalEst;
+  var showAutoExpanded = totalEst < 6000;
+
+  var sectionId = 'llm-input-' + turn.id;
+
+  var html = '<div class="turn-detail-section llm-input-section">';
+
+  // Section header
+  html += '<div class="td-section-header" data-expand="' + sectionId + '">';
+  html += '<span class="td-section-title">🧠 LLM Input</span>';
+  html += '<span class="td-section-meta">' + ctxData.messages.length + ' 条消息</span>';
+  html += '<span class="td-section-meta" style="color:var(--blue)">~' + fmt(displayTokens) + ' tk</span>';
+  if (ctxPct > 0) {
+    var pctColor = ctxPct > 80 ? 'var(--red)' : ctxPct > 60 ? 'var(--orange)' : 'var(--text-dim)';
+    html += '<span class="td-section-meta" style="color:' + pctColor + '">' + ctxPct.toFixed(0) + '% ctx</span>';
+  }
+  html += '<span class="td-section-arrow">' + (showAutoExpanded ? '▼' : '▶') + '</span>';
+  html += '</div>';
+
+  // Section body
+  html += '<div id="' + sectionId + '" class="td-section-body" style="' + (showAutoExpanded ? '' : 'display:none') + '">';
+
+  // Render each context message as an expandable card
+  for (var mi = 0; mi < ctxData.messages.length; mi++) {
+    var msg = ctxData.messages[mi];
+    var roleColor = ROLE_COLORS[msg.role] || '#888';
+    var roleIcon = ROLE_ICONS[msg.role] || '💬';
+    var msgCardId = 'llm-msg-' + turn.id + '-' + mi;
+    var msgContentId = 'llm-msg-content-' + turn.id + '-' + mi;
+
+    var preview = msg.summary || msg.content || '';
+    if (preview.length > 80) preview = preview.substring(0, 80) + '...';
+
+    // Store full content for copy
+    llmInputContents[msgContentId] = msg.content || '';
+
+    html += '<div class="llm-input-msg-card" style="border-left-color:' + roleColor + '">';
+    // Card header (clickable to expand)
+    html += '<div class="llm-input-msg-header" data-target="' + msgCardId + '">';
+    html += '<span class="llm-input-role-dot" style="background:' + roleColor + '"></span>';
+    html += '<span class="llm-input-role-badge" style="color:' + roleColor + '">' + roleIcon + ' ' + esc(msg.role) + '</span>';
+    html += '<span class="llm-input-msg-index">#' + (msg.turnIndex + 1) + '</span>';
+    html += '<span class="llm-input-msg-preview">' + esc(preview) + '</span>';
+    html += '<span class="llm-input-msg-tokens">~' + fmt(msg.tokenEstimate) + ' tk</span>';
+    html += '<span class="ctx-expand-arrow">▶</span>';
+    html += '</div>';
+
+    // Expandable body
+    html += '<div id="' + msgCardId + '" class="llm-input-msg-body" style="display:none">';
+    if (msg.content) {
+      html += '<pre class="td-content-pre">' + esc(msg.content.length > 10000 ? msg.content.substring(0, 10000) + '\\n\\n... [已截断]' : msg.content) + '</pre>';
+    } else {
+      html += '<div style="color:var(--text-dim);font-style:italic;padding:8px">无内容</div>';
+    }
+    html += '<button class="td-copy-btn llm-input-copy-btn" data-copy-id="' + msgContentId + '" style="margin-top:4px">📋 复制</button>';
+    html += '</div>';
+    html += '</div>'; // llm-input-msg-card
+  }
+
+  html += '</div>'; // td-section-body
+  html += '</div>'; // turn-detail-section
+
+  return html;
+}
+
 // ── Turn detail (lower section) ──
 
 // Shared storage for copy operations (avoids DOM attr encoding issues)
@@ -750,11 +968,17 @@ function renderTurnDetail(turn) {
   // ── Metric badges ──
   html += renderTurnMetrics(turn);
 
+  // ── LLM Input section (assistant turns: what the model received) ──
+  // Shown BEFORE output for logical flow: input → output
+  if (turn.role === 'assistant') {
+    html += renderLlmInputSection(turn);
+  }
+
   // ── Content section (User Input / LLM Output) ──
   var hasContent = turn.content && turn.content.length > 0;
   if (hasContent) {
     var contentSections = parseContentSections(turn.content);
-    var contentLabel = turn.role === 'user' ? '👤 User Input'
+    var contentLabel = turn.role === 'user' ? '👤 用户输入'
       : (turn.role === 'assistant' ? '🤖 LLM Output'
       : '💬 ' + esc(turn.role));
     var contentId = 'td-content-' + turn.id;
@@ -778,13 +1002,13 @@ function renderTurnDetail(turn) {
 
         html += '<div class="td-thinking-block">';
         html += '<div class="td-section-header td-sub-header" data-expand="' + thinkId + '">';
-        html += '<span class="badge badge-purple">💭 thinking</span>';
+        html += '<span class="badge badge-purple">💭 思考过程</span>';
         html += '<span class="td-section-meta">' + thinkPreview.substring(0, 80) + '</span>';
         html += '<span class="td-section-arrow">▶</span>';
-        html += '<button class="td-copy-btn" data-copy-id="' + thinkContentId + '" title="Copy">📋</button>';
+        html += '<button class="td-copy-btn" data-copy-id="' + thinkContentId + '" title="复制">📋</button>';
         html += '</div>';
         html += '<div id="' + thinkId + '" class="td-section-body" style="display:none">';
-        html += '<pre class="td-content-pre">' + esc(section.content.length > 10000 ? section.content.substring(0, 10000) + '\\n\\n... [' + __('turns.truncated') + ']' : section.content) + '</pre>';
+        html += '<pre class="td-content-pre">' + esc(section.content.length > 10000 ? section.content.substring(0, 10000) + '\\n\\n... [已截断]' : section.content) + '</pre>';
         html += '</div>';
         html += '</div>';
       } else {
@@ -793,11 +1017,11 @@ function renderTurnDetail(turn) {
 
         html += '<div class="td-text-block">';
         html += '<div class="td-text-header">';
-        html += '<span class="badge badge-green">📝 text</span>';
+        html += '<span class="badge badge-green">📝 正文</span>';
         html += '<span class="td-section-meta">~' + Math.round(section.content.length / 3.5) + ' est. tk</span>';
-        html += '<button class="td-copy-btn" data-copy-id="' + textContentId + '" title="Copy">📋</button>';
+        html += '<button class="td-copy-btn" data-copy-id="' + textContentId + '" title="复制">📋</button>';
         html += '</div>';
-        html += '<pre class="td-content-pre">' + esc(section.content.length > 20000 ? section.content.substring(0, 20000) + '\\n\\n... [' + __('turns.truncated') + ']' : section.content) + '</pre>';
+        html += '<pre class="td-content-pre">' + esc(section.content.length > 20000 ? section.content.substring(0, 20000) + '\\n\\n... [已截断]' : section.content) + '</pre>';
         html += '</div>';
       }
     }
@@ -805,18 +1029,17 @@ function renderTurnDetail(turn) {
     html += '</div>'; // td-section-body
     html += '</div>'; // turn-detail-section
   } else if (turn.role === 'user') {
-    // User turn with no text content (unusual but handle gracefully)
     html += '<div class="turn-detail-section">';
     html += '<div class="td-section-header" style="cursor:default">';
-    html += '<span class="td-section-title">👤 User Input</span>';
-    html += '<span class="td-section-meta" style="color:var(--text-dim)">(no content)</span>';
+    html += '<span class="td-section-title">👤 用户输入</span>';
+    html += '<span class="td-section-meta" style="color:var(--text-dim)">(无内容)</span>';
     html += '</div>';
     html += '</div>';
   } else if (turn.role === 'assistant') {
     html += '<div class="turn-detail-section">';
     html += '<div class="td-section-header" style="cursor:default">';
     html += '<span class="td-section-title">🤖 LLM Output</span>';
-    html += '<span class="td-section-meta" style="color:var(--text-dim)">(tool-only turn)</span>';
+    html += '<span class="td-section-meta" style="color:var(--text-dim)">(纯工具调用，无文本输出)</span>';
     html += '</div>';
     html += '</div>';
   }
@@ -941,12 +1164,27 @@ function renderTurnDetail(turn) {
     btn.addEventListener('click', function(e) {
       e.stopPropagation();
       var copyId = this.getAttribute('data-copy-id');
-      var content = turnDetailContents[copyId] || '';
+      var content = turnDetailContents[copyId] || llmInputContents[copyId] || '';
       navigator.clipboard && navigator.clipboard.writeText(content).catch(function() {});
       var origText = this.textContent;
       this.textContent = '✓';
       var self = this;
       setTimeout(function() { self.textContent = origText; }, 1000);
+    });
+  });
+
+  // ── Bind LLM input message card expand/collapse ──
+  panel.querySelectorAll('.llm-input-msg-header').forEach(function(header) {
+    header.addEventListener('click', function(e) {
+      if (e.target.closest('.td-copy-btn')) return;
+      var targetId = this.getAttribute('data-target');
+      var body = document.getElementById(targetId);
+      var arrow = this.querySelector('.ctx-expand-arrow');
+      if (body) {
+        var isOpen = body.style.display !== 'none';
+        body.style.display = isOpen ? 'none' : 'block';
+        if (arrow) arrow.textContent = isOpen ? '▶' : '▼';
+      }
     });
   });
 
@@ -965,10 +1203,20 @@ function renderTurnDetail(turn) {
 if (window.__kirinai) {
   window.__kirinai.on('navigate:turns', function(params) {
     if (params && params.subagentSessionId) {
-      renderTurnCards(params.subagentSessionId);
+      filterSubagentSessionId = params.subagentSessionId;
+      activeRoleFilter = null;
+      searchKeyword = '';
+      var si = document.getElementById('turnsSearchInput');
+      if (si) si.value = '';
+      applyFilters();
     }
     if (params && params.turnId) {
-      renderTurnCards(null);
+      filterSubagentSessionId = null;
+      activeRoleFilter = null;
+      searchKeyword = '';
+      var si2 = document.getElementById('turnsSearchInput');
+      if (si2) si2.value = '';
+      applyFilters();
       setTimeout(function() {
         var card = document.querySelector('.turn-card[data-turn-id="' + esc(params.turnId) + '"]');
         if (card) {

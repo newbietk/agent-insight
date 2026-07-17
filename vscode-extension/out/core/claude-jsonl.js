@@ -14,6 +14,7 @@ exports.listSessions = listSessions;
 exports.listSubagentSessions = listSubagentSessions;
 exports.collectSubagentToolUseMappings = collectSubagentToolUseMappings;
 exports.extractVersion = extractVersion;
+exports.extractSessionTitle = extractSessionTitle;
 exports.readSession = readSession;
 const node_fs_1 = __importDefault(require("node:fs"));
 const node_path_1 = __importDefault(require("node:path"));
@@ -177,6 +178,7 @@ function listSessions(dirPath) {
         if (lines.length === 0)
             continue;
         let firstQuery = null;
+        let title = null;
         let modelName = null;
         let createdAt;
         try {
@@ -192,6 +194,11 @@ function listSessions(dirPath) {
                     firstQuery = text.substring(0, 200);
                 }
             }
+            if (line.type === 'ai-title' && !title && line.message) {
+                const titleText = extractTextContent(line.message.content);
+                if (titleText)
+                    title = titleText.substring(0, 200);
+            }
             if (line.type === 'assistant' && line.message?.model) {
                 if (!modelName) {
                     modelName = line.message.model;
@@ -202,6 +209,7 @@ function listSessions(dirPath) {
             id: sessionId,
             createdAt,
             firstQuery,
+            title,
             turnCount: lines.length,
             modelName,
         });
@@ -369,6 +377,46 @@ function groupAssistantLines(lines) {
     if (current)
         groups.push(current);
     return groups;
+}
+/** Extract the first ai-title line content from a Claude Code JSONL file. */
+function extractSessionTitle(filePath) {
+    try {
+        if (!filePath || !node_fs_1.default.existsSync(filePath))
+            return null;
+        const stat = node_fs_1.default.statSync(filePath);
+        if (!stat.isFile())
+            return null;
+        // Only scan first 8KB — ai-title always appears early
+        const fd = node_fs_1.default.openSync(filePath, 'r');
+        const buf = Buffer.alloc(8192);
+        const bytesRead = node_fs_1.default.readSync(fd, buf, 0, buf.length, 0);
+        node_fs_1.default.closeSync(fd);
+        const content = buf.toString('utf-8', 0, bytesRead);
+        if (!content.trim())
+            return null;
+        const lines = content.split('\n');
+        for (const line of lines) {
+            if (!line.trim())
+                continue;
+            try {
+                const obj = JSON.parse(line);
+                if (obj.type === 'ai-title' && obj.message) {
+                    const text = typeof obj.message.content === 'string'
+                        ? obj.message.content
+                        : (Array.isArray(obj.message.content)
+                            ? obj.message.content.find((b) => b.type === 'text')?.text
+                            : null);
+                    if (text)
+                        return text.substring(0, 200);
+                }
+            }
+            catch { /* skip */ }
+        }
+        return null;
+    }
+    catch {
+        return null;
+    }
 }
 function readSession(filePath, sessionId) {
     if (!filePath || !node_fs_1.default.existsSync(filePath))

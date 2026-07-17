@@ -10,7 +10,8 @@ import zhCN from './zh-cn';
 export function t(key: string, ...args: (string | number)[]): string {
   let template = zhCN[key];
   if (template === undefined) {
-    // key 不存在时返回 key 本身，方便发现遗漏
+    // key 不存在时返回 key + 参数，方便发现遗漏并看到实际错误
+    if (args.length > 0) return `${key}: ${args.join(', ')}`;
     return key;
   }
   return template.replace(/\{(\d+)\}/g, (_, idx) => {

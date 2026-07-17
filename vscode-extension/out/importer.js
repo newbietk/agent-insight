@@ -99,7 +99,7 @@ function computeAggregates(turns, toolCalls, skillEvents) {
     };
 }
 /** Shared pipeline: raw interactions → normalize → turn-split → storage write. */
-function pipelineImport(storage, rawInteractions, sourceType, framework, taskId, sourcePath) {
+function pipelineImport(storage, rawInteractions, sourceType, framework, taskId, sourcePath, title) {
     if (rawInteractions.length === 0)
         return null;
     const normalized = (0, normalize_1.normalize)(rawInteractions, sourceType);
@@ -107,12 +107,14 @@ function pipelineImport(storage, rawInteractions, sourceType, framework, taskId,
     const agg = computeAggregates(turns, toolCalls, skillEvents);
     const sessionId = generateId();
     const firstUserTurn = turns.find(t => t.role === 'user');
+    const firstQuery = firstUserTurn?.content?.substring(0, 200) ?? null;
     const session = {
         ...agg,
         id: sessionId,
         taskId,
-        label: firstUserTurn?.contentSummary ?? null,
-        query: firstUserTurn?.content?.substring(0, 200) ?? null,
+        // Prefer agent-generated title over first user query for display label
+        label: title || (firstUserTurn?.contentSummary ?? null),
+        query: firstQuery,
         framework,
         sourcePath,
         sourceType,
@@ -217,7 +219,8 @@ function importJsonlFile(storage, filePath) {
         throw new Error((0, i18n_1.t)('import.error.alreadyImported', taskId));
     }
     const rawInteractions = (0, claude_jsonl_1.readSession)(filePath, taskId);
-    return pipelineImport(storage, rawInteractions, 'claude-jsonl', 'claude-code', taskId, filePath);
+    const title = (0, claude_jsonl_1.extractSessionTitle)(filePath);
+    return pipelineImport(storage, rawInteractions, 'claude-jsonl', 'claude-code', taskId, filePath, title);
 }
 /**
  * Import a single OpenCode session into storage.
@@ -228,7 +231,8 @@ async function importOpenCodeSession(storage, dbPath, sessionId) {
         throw new Error((0, i18n_1.t)('import.error.alreadyImported', sessionId));
     }
     const rawInteractions = await (0, opencode_db_1.readSession)(dbPath, sessionId);
-    return pipelineImport(storage, rawInteractions, 'opencode-db', 'opencode', sessionId, dbPath);
+    const title = await (0, opencode_db_1.getSessionTitle)(dbPath, sessionId);
+    return pipelineImport(storage, rawInteractions, 'opencode-db', 'opencode', sessionId, dbPath, title);
 }
 /**
  * List OpenCode sessions from a database file.
@@ -237,7 +241,7 @@ async function listOpenCodeSessions(dbPath) {
     const sessions = await (0, opencode_db_1.listSessions)(dbPath);
     return sessions.map(s => ({
         id: s.id,
-        label: s.firstQuery?.substring(0, 100) ?? null,
+        label: (s.title || s.firstQuery)?.substring(0, 100) ?? null,
         model: s.modelName,
     }));
 }
@@ -248,7 +252,7 @@ function scanClaudeSessions(dirPath) {
     const sessions = (0, claude_jsonl_1.listSessions)(dirPath);
     return sessions.map(s => ({
         taskId: s.id,
-        label: s.firstQuery?.substring(0, 100) ?? null,
+        label: (s.title || s.firstQuery)?.substring(0, 100) ?? null,
         model: s.modelName,
     }));
 }

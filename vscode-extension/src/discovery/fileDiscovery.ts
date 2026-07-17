@@ -50,41 +50,60 @@ export function findJsonlFiles(dirPath: string, visited?: Set<string>): string[]
   return results;
 }
 
-// ── JSONL file picker ────────────────────────────────────────
+// ── JSONL file picker ─────────────────────────────────────────
 
-function extractFirstUserQuery(filePath: string): string | null {
+interface SessionMeta {
+  title: string | null;
+  firstQuery: string | null;
+  model: string | null;
+}
+
+/** Extract title + firstQuery + model from file header in one 8KB pass. */
+async function extractSessionMetaAsync(filePath: string): Promise<SessionMeta> {
   try {
-    // Read only the first ~8KB to avoid loading entire large files
-    const fd = fs.openSync(filePath, 'r');
+    const fd = await fs.promises.open(filePath, 'r');
     const buf = Buffer.alloc(8192);
-    const bytesRead = fs.readSync(fd, buf, 0, buf.length, 0);
-    fs.closeSync(fd);
+    const { bytesRead } = await fd.read(buf, 0, buf.length, 0);
+    await fd.close();
     const content = buf.toString('utf-8', 0, bytesRead);
-    if (!content.trim()) return null;
+    if (!content.trim()) return { title: null, firstQuery: null, model: null };
+
+    let title: string | null = null;
+    let firstQuery: string | null = null;
+    let model: string | null = null;
 
     const lines = content.split('\n');
     for (const line of lines) {
+      if (title && firstQuery && model) break;
       if (!line.trim()) continue;
       try {
         const obj = JSON.parse(line);
-        if (obj.type === 'user' && obj.message) {
+        if (!title && obj.type === 'ai-title' && obj.message) {
           const msg = obj.message;
-          if (typeof msg.content === 'string') {
-            return msg.content.substring(0, 120);
-          }
-          if (Array.isArray(msg.content)) {
+          if (typeof msg.content === 'string') title = msg.content.substring(0, 500);
+          else if (Array.isArray(msg.content)) {
             for (const block of msg.content) {
-              if (block.type === 'text' && block.text) {
-                return block.text.substring(0, 120);
-              }
+              if (block.type === 'text' && block.text) { title = block.text.substring(0, 500); break; }
             }
           }
         }
-      } catch { /* skip malformed line */ }
+        if (!firstQuery && obj.type === 'user' && obj.message) {
+          const msg = obj.message;
+          if (typeof msg.content === 'string') firstQuery = msg.content.substring(0, 120);
+          else if (Array.isArray(msg.content)) {
+            for (const block of msg.content) {
+              if (block.type === 'text' && block.text) { firstQuery = block.text.substring(0, 120); break; }
+            }
+          }
+        }
+        if (!model && obj.type === 'assistant' && obj.message?.model) {
+          model = obj.message.model;
+        }
+      } catch { /* skip malformed */ }
     }
-    return null;
+    return { title, firstQuery, model };
   } catch {
-    return null;
+    return { title: null, firstQuery: null, model: null };
   }
 }
 
@@ -92,32 +111,44 @@ export async function pickJsonlFiles(
   filePaths: string[],
   sourceLabel: string,
 ): Promise<string[] | undefined> {
-  const items = filePaths.map(f => {
-    const query = extractFirstUserQuery(f);
+  if (filePaths.length === 0) return [];
+
+  // Sort by mtime descending
+  const sorted = filePaths.slice().sort((a, b) => {
+    try { return fs.statSync(b).mtimeMs - fs.statSync(a).mtimeMs; } catch { return 0; }
+  });
+
+  // Load metadata in parallel batches for display labels
+  const CONCURRENCY = 12;
+  const metas: SessionMeta[] = new Array(sorted.length);
+  for (let i = 0; i < sorted.length; i += CONCURRENCY) {
+    const batch = sorted.slice(i, i + CONCURRENCY);
+    const results = await Promise.all(batch.map(fp => extractSessionMetaAsync(fp)));
+    for (let j = 0; j < results.length; j++) metas[i + j] = results[j];
+  }
+
+  // Build items: title as label, no tooltip, simple and reliable
+  const items = sorted.map((fp, i) => {
+    const meta = metas[i];
+    const title = meta.title || meta.firstQuery || path.basename(fp, '.jsonl');
     return {
-      label: query || path.basename(f),
-      description: `${sourceLabel} · ${path.basename(f)}`,
-      detail: path.dirname(f),
-      filePath: f,
-      picked: false,
+      label: title.length > 80 ? title.substring(0, 80) + '…' : title,
+      description: meta.model ? `${sourceLabel} · ${meta.model}` : sourceLabel,
+      detail: path.dirname(fp),
+      filePath: fp,
     };
   });
 
-  if (filePaths.length === 0) return [];
-
-  const MAX_DIRECT_PICK = 20;
-  const placeHolder = filePaths.length <= MAX_DIRECT_PICK
-    ? t('import.picker.selectFiles', filePaths.length)
-    : t('import.picker.selectFilesEsc', filePaths.length);
-
-  const selected = await vscode.window.showQuickPick(items, {
+  // Use the simple showQuickPick API — no createQuickPick complexity
+  const picked = await vscode.window.showQuickPick(items, {
     canPickMany: true,
+    placeHolder: t('import.picker.selectFiles', sorted.length),
     matchOnDescription: true,
     matchOnDetail: true,
-    placeHolder,
   });
-  if (!selected) return undefined;
-  return selected.map(s => s.filePath);
+
+  if (!picked || picked.length === 0) return undefined;
+  return picked.map((p: any) => p.filePath);
 }
 
 // ── Claude Code project dir ──────────────────────────────────
