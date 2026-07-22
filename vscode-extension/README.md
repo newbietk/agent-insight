@@ -1,153 +1,58 @@
-# CANNBot Insight - VSCode Extension
+# Context Insight - VSCode 插件
 
-Session-level observability tool for LLM coding agents, integrated into VSCode. Import sessions from Claude Code, CodeAgent 3.0, and OpenCode — then analyze token usage, context growth, skill events, file operations, and subagents without leaving your editor.
+LLM 编码 Agent 的 Session 级可观测工具。从 Claude Code、CodeAgent、OpenCode 导入对话记录，在编辑器内直接分析 Token 用量、上下文增长、费用、工具调用、Skill 事件和子代理。
 
-**[中文文档](README-zh.md)**
+**[English Documentation](README-en.md)**
 
-## Features
+## 总体介绍
 
-**7-Tab Analysis Panel** — click any session in the sidebar to open a detailed webview:
+Context Insight 在 VSCode 活动栏添加一个专用面板，将 LLM Agent 的对话历史转化为结构化的可观测数据。导入 Session 后，点击即可打开多 Tab 分析视图，从宏观概览到微观轮次，全面了解 Agent 的行为模式。
 
-| Tab | Description |
-|-----|-------------|
-| **Overview** | Summary cards (tokens, cost, latency, model) + token trend line chart with hover tooltips |
-| **Turns** | Turn cards with role badges, tool counts, skill markers; context composition stacked bar (system/user/assistant/tool/cache); expandable message content; **subagent lanes** under dispatching root turns |
-| **Trace** | Search turns by keyword/tool/skill; propagation chain trace across turns |
-| **Context** | Multi-agent context window usage trend chart per agent over turn sequence |
-| **Audit** | Workflow block diagram + issue analysis via pasted JSON from Claude Code audit prompts |
-| **Skills** | Skill invocation timeline with event types (load/invoke/use), success rate, and per-turn mapping |
-| **File Ops** | Per-file read analysis with overlap/redundancy detection; file operations timeline with expandable code blocks and side-by-side diffs; batched file list expansion (10 per click) |
+**支持的数据源：**
 
-**Import Sources** — auto-detect + manual import for 3 agents:
+| Agent | 导入方式 |
+|-------|---------|
+| Claude Code | 自动检测 `~/.claude/projects/` 或手动选择 `.jsonl` 文件 |
+| CodeAgent 3.0 | 自动检测 `~/.cac/projects/` 或手动选择 `.jsonl` 文件 |
+| OpenCode | 自动检测数据库路径或手动浏览 SQLite 文件 |
 
-| Agent | Auto-detect Path | Manual Options |
-|-------|-----------------|----------------|
-| **Claude Code** | `~/.claude/projects/` | Single `.jsonl` file or directory scan |
-| **CodeAgent 3.0** | `~/.cac/projects/` | Single `.jsonl` file or directory scan |
-| **OpenCode** | `%APPDATA%/opencode/` (Windows), `~/.local/share/opencode/` (Linux) | Browse SQLite DB → select sessions |
+**核心能力：**
 
-**Subagent Tracking** — bridges infrastructure links dispatching `Agent`/`Task` tool calls to subagent sessions. Subagent lanes appear inline under root turns showing turn count, token usage, and dispatch prompts.
+- **子代理追踪** — 自动发现并关联被调度的子代理 Session，在所属轮次下方内联展示子代理通道
+- **增量同步** — 已导入的 Session 支持从源文件增量更新，只追加新轮次
 
-**Auto-Sync** — configurable background sync keeps sessions up-to-date as you use Claude Code.
+## Tab 介绍
 
-## Requirements
+### Overview
 
-- **VSCode >= 1.92.0**
-- **Node.js >= 22** (used internally by the extension for SQLite via `sql.js`)
+Session 全局摘要视图。顶部展示核心指标的摘要卡片：Token 总量、估算费用、总延迟、使用的模型。下方是 Token 用量趋势折线图，支持悬浮查看每轮详细数值，直观反映 Session 的资源消耗节奏。
 
-## Usage
+### Turns
 
-### Install from VSIX
+轮次级别的消息分析。每轮以卡片形式展示，标注角色（User / Assistant / System）、工具调用次数、是否涉及 Skill。展开卡片可查看完整消息内容。上下文组成以堆叠柱状图呈现，按系统提示、用户消息、助手消息、工具结果、缓存命中等维度拆分，一目了然地看出每轮消耗了什么。
 
-1. Download the latest `.vsix` file from [Releases](https://github.com/newbietk/agent-insight/releases)
-2. In VSCode: `Ctrl+Shift+P` → **Extensions: Install from VSIX...** → select the file
-3. Click the **graph icon** (📊) in the activity bar to open the CANNBot Insight panel
+被调度的子代理 Session 以**子代理通道**的形式内联在调度轮次下方，显示子代理名称、轮次数、Token 用量和调度指令，完整追踪主代理→子代理的调用链路。
 
-### Import Sessions
+### Trace
 
-1. In the CANNBot Insight sidebar, click the **cloud-download** icon (📥)
-2. Choose import mode: **Auto-detect** or **Manual import**
-3. Select the agent source (Claude Code / CodeAgent 3.0 / OpenCode)
-4. After import, click any session in the sidebar to open the 7-tab analysis view
+跨轮次搜索与传播链追踪。支持按关键词、工具名称、Skill 名称搜索，快速定位目标轮次。传播链视图展示概念或信息在多个轮次间的传递路径，帮助理解 Agent 的推理演进。
 
-### Sidebar Actions
+### Context
 
-| Icon | Action |
-|------|--------|
-| 📥 | Import new sessions |
-| 🔄 | Refresh session list |
-| 🔄✨ | Sync all sessions from source |
+多 Agent 上下文窗口使用率趋势。将各 Agent（主代理及各子代理）的上下文窗口占用率按轮次绘制为多线趋势图，展示峰值和均值。快速发现哪些轮次接近窗口上限、/compact 压缩效果如何、子代理是否独立消耗大量上下文。
 
-Each session row supports:
-- 👁 **Open** — open analysis panel
-- 🔄 **Sync** — re-import latest data for this session
-- 🗑 **Delete** — remove session from local storage
+### Audit
 
-### Configuration
+工作流审计视图。将从 Claude Code 审计提示词（如 `/audit`）生成的 JSON 粘贴进来，渲染为流程框图，直观展示工具调用的执行链路和问题节点。适合事后复盘复杂任务，快速定位低效或异常的调用路径。
 
-Open VSCode Settings (`Ctrl+,`) → search "CANNBot Insight":
+### Skills
 
-| Setting | Default | Description |
-|---------|---------|-------------|
-| `hismartlite.claudeProjectsPath` | `""` | Custom path to Claude Code projects directory (empty = auto-detect `~/.claude/projects/`) |
-| `hismartlite.cloudUrl` | `""` | CANNBot Cloud server URL |
-| `hismartlite.autoSync.enabled` | `false` | Enable automatic background sync of sessions |
-| `hismartlite.autoSync.intervalMs` | `30000` | Sync interval in milliseconds |
+Skill 事件时间线。以甘特图风格展示每个 Skill 的加载和调用时间点，标注事件类型（load / invoke / use）、耗时、成功/失败状态。可下钻到每一轮，查看该轮内触发了哪些 Skill 以及各自的执行结果。
 
-## Packaging
+### File Ops
 
-### Build VSIX
+文件操作全景分析。两个维度：**按文件聚合** — 统计每个文件被读取的次数、冗余度检测（同一文件被反复读取可能暗示上下文缓存未命中）；**操作时间线** — 按时间顺序排列所有 Read / Write / Edit 操作，展开可查看文件内容、Edit 操作的并排 diff 对比。文件列表支持分批加载（每次 10 个），大规模 Session 下也能流畅浏览。
 
-```bash
-cd vscode-extension
-npm install
-npm run compile
-npm run copy-assets
-npx @vscode/vsce package
-```
-
-This produces `cannbot-insight-<version>.vsix` in the current directory.
-
-### Verify the package
-
-```bash
-npx @vscode/vsce ls
-npx @vscode/vsce package --dry-run
-```
-
-## Development
-
-```bash
-cd vscode-extension
-npm install
-npm run compile
-
-# Watch mode
-npm run watch
-
-# Debug: open vscode-extension/ in VSCode, press F5
-```
-
-### Project Structure
-
-```
-vscode-extension/
-├── src/
-│   ├── core/                  # Data pipeline
-│   │   ├── claude-jsonl.ts    # Claude Code JSONL adapter
-│   │   ├── opencode-db.ts     # OpenCode SQLite adapter
-│   │   ├── normalize.ts       # Data normalization
-│   │   ├── turn-split.ts      # Turn/ToolCall/SkillEvent extraction
-│   │   ├── cost-calculator.ts # Model pricing & cost estimation
-│   │   └── context-window-config.ts  # Model context window limits
-│   ├── storage/
-│   │   └── db.ts              # SQLite storage (sql.js)
-│   ├── views/
-│   │   ├── sessionTree.ts     # Sidebar TreeDataProvider
-│   │   └── sessionPanel.ts    # Webview panel manager
-│   ├── media/
-│   │   ├── webviewContent.ts  # HTML/CSS/JS template generator
-│   │   ├── shared.ts          # Shared utilities
-│   │   ├── nav.ts             # Tab navigation runtime
-│   │   ├── theme.ts           # VS Code theme variable sync
-│   │   └── tabs/              # Per-tab render functions
-│   │       ├── overview.ts    # Token trend chart
-│   │       ├── turns.ts       # Turn cards + context composition + subagent lanes
-│   │       ├── trace.ts       # Search + propagation chain
-│   │       ├── context.ts     # Multi-agent context growth chart
-│   │       ├── audit.ts       # Workflow audit block diagram
-│   │       ├── skills.ts      # Skill events timeline
-│   │       └── fileops.ts     # File operations audit + per-file analysis
-│   ├── sync/
-│   │   └── scheduler.ts       # Auto-sync interval scheduler
-│   ├── i18n/                  # Internationalization (en, zh-cn)
-│   ├── extension.ts          # Extension entry point
-│   └── importer.ts           # Import orchestration + bridge extraction
-├── package.json               # Extension manifest
-├── tsconfig.json
-└── README.md
-```
-
-## License
+## 开源协议
 
 MIT

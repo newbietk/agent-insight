@@ -1,5 +1,5 @@
 /**
- * Chinese (Simplified) translations — default language for CANNBot Insight.
+ * Chinese (Simplified) translations — default language for Context Insight.
  */
 const zhCN: Record<string, string> = {
   // ── Common ──
@@ -32,9 +32,9 @@ const zhCN: Record<string, string> = {
   'statusbar.tooltip': '导入 Claude Code、CodeAgent 或 OpenCode 会话进行分析',
 
   // ── Activation ──
-  'activation.failed': 'CANNBot Insight 启动失败: {0}',
-  'activation.ready': 'CANNBot Insight 已就绪。点击侧边栏的图表图标或使用「导入会话」开始使用。',
-  'activation.errorPrefix': 'CANNBot Insight: {0}',
+  'activation.failed': 'Context Insight 启动失败: {0}',
+  'activation.ready': 'Context Insight 已就绪。点击侧边栏的图表图标或使用「导入会话」开始使用。',
+  'activation.errorPrefix': 'Context Insight: {0}',
 
   // ── Import: agent selection ──
   'import.selectAgent': '选择要导入的数据来源',

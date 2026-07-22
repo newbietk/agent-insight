@@ -1,2 +1,2 @@
-export const BRAND_NAME = "CANNBot-Insight";
-export const BRAND_SOURCE_TYPE = "cannbot-insight";
+export const BRAND_NAME = "Context-Insight";
+export const BRAND_SOURCE_TYPE = "context-insight";

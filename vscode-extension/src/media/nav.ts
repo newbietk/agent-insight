@@ -32,7 +32,7 @@ window.__kirinai = (function() {
   function emit(event, params) {
     if (!listeners[event]) return;
     listeners[event].forEach(function(fn) {
-      try { fn(params); } catch(e) { console.error('[KirinAI nav]', event, e); }
+      try { fn(params); } catch(e) { console.error('[Context nav]', event, e); }
     });
   }
 

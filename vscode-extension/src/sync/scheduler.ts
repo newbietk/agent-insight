@@ -60,7 +60,7 @@ export class SyncScheduler {
       }),
     );
 
-    console.log(`[KirinAI] Auto-sync started (interval: ${clamped}ms)`);
+    console.log(`[Context] Auto-sync started (interval: ${clamped}ms)`);
   }
 
   /** Stop polling. Safe to call multiple times. */
@@ -68,7 +68,7 @@ export class SyncScheduler {
     if (this.timer) {
       clearInterval(this.timer);
       this.timer = null;
-      console.log('[KirinAI] Auto-sync stopped');
+      console.log('[Context] Auto-sync stopped');
     }
   }
 
@@ -108,12 +108,12 @@ export class SyncScheduler {
         if (result.newTurnCount > 0) {
           changed = true;
           console.log(
-            `[KirinAI] Auto-synced "${s.taskId}": +${result.newTurnCount} turns (${result.totalTurnCount} total)`,
+            `[Context] Auto-synced "${s.taskId}": +${result.newTurnCount} turns (${result.totalTurnCount} total)`,
           );
         }
       } catch (err) {
         console.error(
-          `[KirinAI] Auto-sync failed for "${s.taskId}":`,
+          `[Context] Auto-sync failed for "${s.taskId}":`,
           err instanceof Error ? err.message : err,
         );
       } finally {

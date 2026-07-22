@@ -132,7 +132,7 @@ export interface SessionDetailData {
   bridges?: SubagentLinkRow[];
 }
 
-const DB_FILENAME = 'kirinai-sessions.db';
+const DB_FILENAME = 'context-insight-sessions.db';
 
 function getDbPath(context: { globalStorageUri: { fsPath: string } } | { storageUri: { fsPath: string } }): string {
   if ('globalStorageUri' in context) {

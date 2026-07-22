@@ -28,7 +28,7 @@ export async function activate(context: vscode.ExtensionContext) {
     _storage = await Storage.forExtension(context);
   } catch (err) {
     _activationError = err instanceof Error ? err.message : String(err);
-    console.error('[KirinAI] Activation error:', _activationError);
+    console.error('[Context] Activation error:', _activationError);
     vscode.window.showErrorMessage(t('activation.failed', _activationError));
   }
 
@@ -49,7 +49,7 @@ export async function activate(context: vscode.ExtensionContext) {
       const { SessionPanelManager } = require('./views/sessionPanel');
       _panelManager = new SessionPanelManager(_storage);
     } catch (err) {
-      console.error('[KirinAI] Panel manager init error:', err);
+      console.error('[Context] Panel manager init error:', err);
     }
 
     // Wire refresh callback for import commands
@@ -80,7 +80,7 @@ export async function activate(context: vscode.ExtensionContext) {
   // ── Status bar ──
   const statusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 100);
   statusBarItem.command = 'hismartlite.import';
-  statusBarItem.text = '$(graph) KirinAI';
+  statusBarItem.text = '$(graph) Context';
   statusBarItem.tooltip = t('statusbar.tooltip');
   statusBarItem.show();
   context.subscriptions.push(statusBarItem);

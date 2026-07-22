@@ -31,7 +31,7 @@ export function findJsonlFiles(dirPath: string, visited?: Set<string>): string[]
       }
     }
   } catch (e: any) {
-    console.error(`[KirinAI] findJsonlFiles error in ${dirPath}: ${e.code || e.message}`);
+    console.error(`[Context] findJsonlFiles error in ${dirPath}: ${e.code || e.message}`);
   }
   return results;
 }

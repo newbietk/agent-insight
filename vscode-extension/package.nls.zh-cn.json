@@ -1,14 +1,14 @@
 {
-  "displayName": "CANNBot Insight",
+  "displayName": "Context Insight",
   "description": "LLM Agent 会话可观测性 — 分析 Claude Code 会话的 Token 用量、费用、上下文增长等",
   "command.import.title": "导入会话",
   "command.refreshSessions.title": "刷新会话列表",
   "command.openSession.title": "打开会话详情",
   "command.deleteSession.title": "删除会话",
   "command.syncSession.title": "从数据源同步",
-  "viewContainer.title": "CANNBot Insight",
+  "viewContainer.title": "Context Insight",
   "view.sessions.name": "会话列表",
-  "config.title": "CANNBot Insight",
+  "config.title": "Context Insight",
   "config.claudeProjectsPath.description": "Claude Code 项目目录路径（如 ~/.claude/projects）。留空则自动检测。",
-  "config.cloudUrl.description": "CANNBot Cloud 后端地址，用于上传反馈和会话数据。"
+  "config.cloudUrl.description": "Context Cloud 后端地址，用于上传反馈和会话数据。"
 }
