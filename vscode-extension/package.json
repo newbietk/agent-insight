@@ -22,7 +22,9 @@
     "onCommand:hismartlite.deleteSession",
     "onCommand:hismartlite.syncSession",
     "onCommand:hismartlite.openDocs",
-    "onView:hismartlite.sessions"
+    "onCommand:hismartlite.showWelcome",
+    "onCommand:hismartlite.hideWelcome",
+    "onView:hismartlite.main"
   ],
   "main": "./out/extension.js",
   "contributes": {
@@ -56,6 +58,16 @@
         "command": "hismartlite.openDocs",
         "title": "%command.openDocs.title%",
         "icon": "$(book)"
+      },
+      {
+        "command": "hismartlite.showWelcome",
+        "title": "%command.showWelcome.title%",
+        "icon": "$(info)"
+      },
+      {
+        "command": "hismartlite.hideWelcome",
+        "title": "%command.hideWelcome.title%",
+        "icon": "$(arrow-left)"
       }
     ],
     "viewsContainers": {
@@ -70,15 +82,9 @@
     "views": {
       "hismartlite": [
         {
-          "id": "hismartlite.welcome",
-          "name": "%view.welcome.name%",
-          "type": "webview",
-          "when": "!hismartlite:hasSessions"
-        },
-        {
-          "id": "hismartlite.sessions",
-          "name": "%view.sessions.name%",
-          "when": "hismartlite:hasSessions"
+          "id": "hismartlite.main",
+          "name": "%view.main.name%",
+          "type": "webview"
         }
       ]
     },
@@ -86,29 +92,13 @@
       "view/title": [
         {
           "command": "hismartlite.import",
-          "when": "view == hismartlite.sessions",
+          "when": "view == hismartlite.main",
           "group": "navigation"
         },
         {
           "command": "hismartlite.refreshSessions",
-          "when": "view == hismartlite.sessions",
+          "when": "view == hismartlite.main",
           "group": "navigation"
-        }
-      ],
-      "view/item/context": [
-        {
-          "command": "hismartlite.openSession",
-          "when": "view == hismartlite.sessions",
-          "group": "inline"
-        },
-        {
-          "command": "hismartlite.syncSession",
-          "when": "view == hismartlite.sessions",
-          "group": "inline"
-        },
-        {
-          "command": "hismartlite.deleteSession",
-          "when": "view == hismartlite.sessions"
         }
       ]
     },

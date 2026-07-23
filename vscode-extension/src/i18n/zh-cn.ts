@@ -111,8 +111,8 @@ const zhCN: Record<string, string> = {
   'import.picker.selectFilesEsc': '找到 {0} 个会话，选择要导入的（按 Esc 取消）。',
 
   // ── Delete ──
-  'delete.confirm': '删除会话「{0}」？此操作不可撤销。',
-  'delete.deleted': '已删除会话「{0}」。',
+  'delete.confirm': '确定移除会话「{0}」？仅从列表中移除，不会删除原始数据文件，之后可以重新导入。',
+  'delete.deleted': '已移除会话「{0}」。原始数据文件未受影响，可随时重新导入。',
 
   // ── Session list (TreeView) ──
   'session.empty': '暂无会话',

@@ -40,7 +40,7 @@ const i18n_1 = require("./i18n");
 const import_1 = require("./commands/import");
 // ── Lazy references (initialized on first use, not at module load) ──
 let _storage = null;
-let _treeProvider = null;
+let _mainProvider = null;
 let _panelManager = null;
 let _activationError = null;
 function getStorage() {
@@ -48,25 +48,17 @@ function getStorage() {
         throw new Error('Storage not initialized');
     return _storage;
 }
-function getTreeProvider() {
-    if (!_treeProvider)
-        throw new Error('Tree provider not initialized');
-    return _treeProvider;
-}
-function getPanelManager() {
-    if (!_panelManager)
-        throw new Error('Panel manager not initialized');
-    return _panelManager;
-}
-// ── Context key helper ──────────────────────────────────────
-function updateSessionContext(storage) {
-    const hasSessions = storage ? storage.listSessions().length > 0 : false;
-    vscode.commands.executeCommand('setContext', 'hismartlite:hasSessions', hasSessions);
+// ── State push helper ──────────────────────────────────────
+/** Push current sessions from storage into the main view provider. */
+function pushState() {
+    const mp = _mainProvider;
+    const storage = _storage;
+    if (!mp || !storage)
+        return;
+    const sessions = storage.listSessions();
+    mp.setState(sessions.length === 0 ? 'welcome' : 'sessions', sessions);
 }
 async function activate(context) {
-    // ── Welcome webview ──
-    const { WelcomeViewProvider } = require('./views/welcomeView');
-    context.subscriptions.push(vscode.window.registerWebviewViewProvider(WelcomeViewProvider.viewType, new WelcomeViewProvider(context.extensionUri)));
     // ── Initialize Storage ──
     try {
         const { Storage } = require('./storage/db');
@@ -77,15 +69,11 @@ async function activate(context) {
         console.error('[Context] Activation error:', _activationError);
         vscode.window.showErrorMessage((0, i18n_1.t)('activation.failed', _activationError));
     }
-    // ── Session list: TreeView ──
+    // ── Unified Main View ──
     if (_storage) {
-        const { SessionTreeDataProvider } = require('./views/sessionTree');
-        const treeProvider = new SessionTreeDataProvider(_storage);
-        _treeProvider = treeProvider;
-        context.subscriptions.push(vscode.window.createTreeView('hismartlite.sessions', {
-            treeDataProvider: treeProvider,
-            showCollapseAll: false,
-        }));
+        const { MainViewProvider } = require('./views/mainView');
+        _mainProvider = new MainViewProvider(context.extensionUri);
+        context.subscriptions.push(vscode.window.registerWebviewViewProvider(MainViewProvider.viewType, _mainProvider));
         // Panel manager for detail view
         try {
             const { SessionPanelManager } = require('./views/sessionPanel');
@@ -95,12 +83,9 @@ async function activate(context) {
             console.error('[Context] Panel manager init error:', err);
         }
         // Wire refresh callback for import commands
-        (0, import_1.setRefreshCallback)(() => { if (_treeProvider) {
-            _treeProvider.refresh();
-            updateSessionContext(_storage);
-        } });
-        // Set initial context
-        updateSessionContext(_storage);
+        (0, import_1.setRefreshCallback)(() => pushState());
+        // Push initial state
+        pushState();
     }
     // ── Register commands ──
     context.subscriptions.push(vscode.commands.registerCommand('hismartlite.import', async () => {
@@ -111,10 +96,7 @@ async function activate(context) {
             vscode.window.showErrorMessage((0, i18n_1.t)('import.failed', String(err)));
         }
     }), vscode.commands.registerCommand('hismartlite.refreshSessions', () => {
-        if (_treeProvider) {
-            _treeProvider.refresh();
-            updateSessionContext(_storage);
-        }
+        pushState();
     }), vscode.commands.registerCommand('hismartlite.openSession', (sessionId) => {
         const pm = _panelManager;
         if (pm)
@@ -122,6 +104,13 @@ async function activate(context) {
     }), vscode.commands.registerCommand('hismartlite.deleteSession', (item) => handleDelete(item)), vscode.commands.registerCommand('hismartlite.syncSession', (item) => handleSyncSession(item)), vscode.commands.registerCommand('hismartlite.openDocs', () => {
         const readmePath = vscode.Uri.joinPath(context.extensionUri, 'readme.md');
         vscode.commands.executeCommand('markdown.showPreview', readmePath);
+    }), vscode.commands.registerCommand('hismartlite.showWelcome', () => {
+        if (_mainProvider) {
+            const sessions = _storage ? _storage.listSessions() : [];
+            _mainProvider.setState('welcome-expanded', sessions);
+        }
+    }), vscode.commands.registerCommand('hismartlite.hideWelcome', () => {
+        pushState();
     }));
     // ── Status bar ──
     const statusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 100);
@@ -190,13 +179,9 @@ async function handleDelete(item) {
     if (confirm !== (0, i18n_1.t)('common.delete'))
         return;
     getStorage().deleteSession(session.id);
-    const pm = _panelManager;
-    if (pm)
-        pm.disposeAll();
-    const tp = _treeProvider;
-    if (tp)
-        tp.refresh();
-    updateSessionContext(_storage);
+    if (_panelManager)
+        _panelManager.disposeAll();
+    pushState();
     vscode.window.showInformationMessage((0, i18n_1.t)('delete.deleted', session.taskId));
 }
 // ── Sync ─────────────────────────────────────────────────────
@@ -258,10 +243,8 @@ async function handleSyncSession(item) {
             vscode.window.showErrorMessage((0, i18n_1.t)('sync.failed', message));
         }
     });
-    if (_treeProvider)
-        _treeProvider.refresh();
+    pushState();
     if (_panelManager)
         _panelManager.disposeAll();
-    updateSessionContext(_storage);
 }
 //# sourceMappingURL=extension.js.map

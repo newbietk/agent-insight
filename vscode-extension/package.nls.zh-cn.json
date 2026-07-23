@@ -7,9 +7,10 @@
   "command.deleteSession.title": "删除会话",
   "command.syncSession.title": "从数据源同步",
   "command.openDocs.title": "查看功能介绍",
+  "command.showWelcome.title": "显示欢迎页",
+  "command.hideWelcome.title": "返回会话列表",
   "viewContainer.title": "Context Insight",
-  "view.welcome.name": "欢迎",
-  "view.sessions.name": "会话列表",
+  "view.main.name": "Context Insight",
   "config.title": "Context Insight",
   "config.claudeProjectsPath.description": "Claude Code 项目目录路径（如 ~/.claude/projects）。留空则自动检测。",
   "config.cloudUrl.description": "Context Cloud 后端地址，用于上传反馈和会话数据。"

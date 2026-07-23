@@ -7,9 +7,10 @@
   "command.deleteSession.title": "Delete Session",
   "command.syncSession.title": "Sync from Source",
   "command.openDocs.title": "Open Documentation",
+  "command.showWelcome.title": "Show Welcome",
+  "command.hideWelcome.title": "Back to Sessions",
   "viewContainer.title": "Context Insight",
-  "view.welcome.name": "Welcome",
-  "view.sessions.name": "Sessions",
+  "view.main.name": "Context Insight",
   "config.title": "Context Insight",
   "config.claudeProjectsPath.description": "Path to Claude Code projects directory (e.g. ~/.claude/projects). Leave empty for auto-detect.",
   "config.cloudUrl.description": "Context Cloud backend URL for uploading feedback and session data."
