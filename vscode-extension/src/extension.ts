@@ -21,7 +21,20 @@ function getPanelManager(): import('./views/sessionPanel').SessionPanelManager {
   return _panelManager;
 }
 
+// ── Context key helper ──────────────────────────────────────
+
+function updateSessionContext(storage: import('./storage/db').Storage | null): void {
+  const hasSessions = storage ? storage.listSessions().length > 0 : false;
+  vscode.commands.executeCommand('setContext', 'hismartlite:hasSessions', hasSessions);
+}
+
 export async function activate(context: vscode.ExtensionContext) {
+  // ── Welcome webview ──
+  const { WelcomeViewProvider } = require('./views/welcomeView');
+  context.subscriptions.push(
+    vscode.window.registerWebviewViewProvider(WelcomeViewProvider.viewType, new WelcomeViewProvider(context.extensionUri))
+  );
+
   // ── Initialize Storage ──
   try {
     const { Storage } = require('./storage/db');
@@ -53,7 +66,10 @@ export async function activate(context: vscode.ExtensionContext) {
     }
 
     // Wire refresh callback for import commands
-    setRefreshCallback(() => { if (_treeProvider) _treeProvider.refresh(); });
+    setRefreshCallback(() => { if (_treeProvider) { _treeProvider.refresh(); updateSessionContext(_storage); } });
+
+    // Set initial context
+    updateSessionContext(_storage);
   }
 
   // ── Register commands ──
@@ -63,7 +79,7 @@ export async function activate(context: vscode.ExtensionContext) {
       catch (err) { vscode.window.showErrorMessage(t('import.failed', String(err))); }
     }),
     vscode.commands.registerCommand('hismartlite.refreshSessions', () => {
-      if (_treeProvider) _treeProvider.refresh();
+      if (_treeProvider) { _treeProvider.refresh(); updateSessionContext(_storage); }
     }),
     vscode.commands.registerCommand('hismartlite.openSession', (sessionId: string) => {
       const pm = _panelManager;
@@ -75,6 +91,10 @@ export async function activate(context: vscode.ExtensionContext) {
     vscode.commands.registerCommand('hismartlite.syncSession', (item?: { session: { id: string; taskId: string } }) =>
       handleSyncSession(item)
     ),
+    vscode.commands.registerCommand('hismartlite.openDocs', () => {
+      const readmePath = vscode.Uri.joinPath(context.extensionUri, 'readme.md');
+      vscode.commands.executeCommand('markdown.showPreview', readmePath);
+    }),
   );
 
   // ── Status bar ──
@@ -162,6 +182,7 @@ async function handleDelete(item: { session: { id: string; taskId: string } }): 
   if (pm) pm.disposeAll();
   const tp = _treeProvider;
   if (tp) tp.refresh();
+  updateSessionContext(_storage);
   vscode.window.showInformationMessage(t('delete.deleted', session.taskId));
 }
 
@@ -237,6 +258,7 @@ async function handleSyncSession(item?: { session: { id: string; taskId: string 
 
   if (_treeProvider) _treeProvider.refresh();
   if (_panelManager) _panelManager.disposeAll();
+  updateSessionContext(_storage);
 }
 
 

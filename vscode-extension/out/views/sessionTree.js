@@ -54,11 +54,8 @@ class SessionTreeDataProvider {
             return [];
         const sessions = this.storage.listSessions();
         if (sessions.length === 0) {
-            const empty = new vscode.TreeItem((0, i18n_1.t)('session.empty'), vscode.TreeItemCollapsibleState.None);
-            empty.description = (0, i18n_1.t)('session.emptyHint');
-            empty.command = { command: 'hismartlite.import', title: (0, i18n_1.t)('common.import') };
-            empty.iconPath = new vscode.ThemeIcon('info');
-            return [empty];
+            // Return empty to trigger viewsWelcome display
+            return [];
         }
         return sessions.map(s => new SessionTreeItem(s));
     }

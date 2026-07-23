@@ -21,6 +21,7 @@
     "onCommand:hismartlite.openSession",
     "onCommand:hismartlite.deleteSession",
     "onCommand:hismartlite.syncSession",
+    "onCommand:hismartlite.openDocs",
     "onView:hismartlite.sessions"
   ],
   "main": "./out/extension.js",
@@ -50,6 +51,11 @@
         "command": "hismartlite.syncSession",
         "title": "%command.syncSession.title%",
         "icon": "$(sync)"
+      },
+      {
+        "command": "hismartlite.openDocs",
+        "title": "%command.openDocs.title%",
+        "icon": "$(book)"
       }
     ],
     "viewsContainers": {
@@ -64,8 +70,15 @@
     "views": {
       "hismartlite": [
         {
+          "id": "hismartlite.welcome",
+          "name": "%view.welcome.name%",
+          "type": "webview",
+          "when": "!hismartlite:hasSessions"
+        },
+        {
           "id": "hismartlite.sessions",
-          "name": "%view.sessions.name%"
+          "name": "%view.sessions.name%",
+          "when": "hismartlite:hasSessions"
         }
       ]
     },

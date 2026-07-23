@@ -37,7 +37,7 @@ exports.Storage = void 0;
 const compat_db_1 = require("./compat-db");
 const pathLib = __importStar(require("node:path"));
 const fs = __importStar(require("node:fs"));
-const DB_FILENAME = 'kirinai-sessions.db';
+const DB_FILENAME = 'context-insight-sessions.db';
 function getDbPath(context) {
     if ('globalStorageUri' in context) {
         const dir = context.globalStorageUri.fsPath;

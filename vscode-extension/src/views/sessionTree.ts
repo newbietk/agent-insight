@@ -22,11 +22,8 @@ export class SessionTreeDataProvider implements vscode.TreeDataProvider<SessionT
 
     const sessions = this.storage.listSessions();
     if (sessions.length === 0) {
-      const empty = new vscode.TreeItem(t('session.empty'), vscode.TreeItemCollapsibleState.None);
-      empty.description = t('session.emptyHint');
-      empty.command = { command: 'hismartlite.import', title: t('common.import') };
-      empty.iconPath = new vscode.ThemeIcon('info');
-      return [empty as unknown as SessionTreeItem];
+      // Return empty to trigger viewsWelcome display
+      return [];
     }
 
     return sessions.map(s => new SessionTreeItem(s));

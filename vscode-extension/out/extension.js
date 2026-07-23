@@ -58,7 +58,15 @@ function getPanelManager() {
         throw new Error('Panel manager not initialized');
     return _panelManager;
 }
+// ── Context key helper ──────────────────────────────────────
+function updateSessionContext(storage) {
+    const hasSessions = storage ? storage.listSessions().length > 0 : false;
+    vscode.commands.executeCommand('setContext', 'hismartlite:hasSessions', hasSessions);
+}
 async function activate(context) {
+    // ── Welcome webview ──
+    const { WelcomeViewProvider } = require('./views/welcomeView');
+    context.subscriptions.push(vscode.window.registerWebviewViewProvider(WelcomeViewProvider.viewType, new WelcomeViewProvider(context.extensionUri)));
     // ── Initialize Storage ──
     try {
         const { Storage } = require('./storage/db');
@@ -66,7 +74,7 @@ async function activate(context) {
     }
     catch (err) {
         _activationError = err instanceof Error ? err.message : String(err);
-        console.error('[KirinAI] Activation error:', _activationError);
+        console.error('[Context] Activation error:', _activationError);
         vscode.window.showErrorMessage((0, i18n_1.t)('activation.failed', _activationError));
     }
     // ── Session list: TreeView ──
@@ -84,11 +92,15 @@ async function activate(context) {
             _panelManager = new SessionPanelManager(_storage);
         }
         catch (err) {
-            console.error('[KirinAI] Panel manager init error:', err);
+            console.error('[Context] Panel manager init error:', err);
         }
         // Wire refresh callback for import commands
-        (0, import_1.setRefreshCallback)(() => { if (_treeProvider)
-            _treeProvider.refresh(); });
+        (0, import_1.setRefreshCallback)(() => { if (_treeProvider) {
+            _treeProvider.refresh();
+            updateSessionContext(_storage);
+        } });
+        // Set initial context
+        updateSessionContext(_storage);
     }
     // ── Register commands ──
     context.subscriptions.push(vscode.commands.registerCommand('hismartlite.import', async () => {
@@ -99,17 +111,22 @@ async function activate(context) {
             vscode.window.showErrorMessage((0, i18n_1.t)('import.failed', String(err)));
         }
     }), vscode.commands.registerCommand('hismartlite.refreshSessions', () => {
-        if (_treeProvider)
+        if (_treeProvider) {
             _treeProvider.refresh();
+            updateSessionContext(_storage);
+        }
     }), vscode.commands.registerCommand('hismartlite.openSession', (sessionId) => {
         const pm = _panelManager;
         if (pm)
             pm.show(context, sessionId);
-    }), vscode.commands.registerCommand('hismartlite.deleteSession', (item) => handleDelete(item)), vscode.commands.registerCommand('hismartlite.syncSession', (item) => handleSyncSession(item)));
+    }), vscode.commands.registerCommand('hismartlite.deleteSession', (item) => handleDelete(item)), vscode.commands.registerCommand('hismartlite.syncSession', (item) => handleSyncSession(item)), vscode.commands.registerCommand('hismartlite.openDocs', () => {
+        const readmePath = vscode.Uri.joinPath(context.extensionUri, 'readme.md');
+        vscode.commands.executeCommand('markdown.showPreview', readmePath);
+    }));
     // ── Status bar ──
     const statusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 100);
     statusBarItem.command = 'hismartlite.import';
-    statusBarItem.text = '$(graph) KirinAI';
+    statusBarItem.text = '$(graph) Context';
     statusBarItem.tooltip = (0, i18n_1.t)('statusbar.tooltip');
     statusBarItem.show();
     context.subscriptions.push(statusBarItem);
@@ -179,6 +196,7 @@ async function handleDelete(item) {
     const tp = _treeProvider;
     if (tp)
         tp.refresh();
+    updateSessionContext(_storage);
     vscode.window.showInformationMessage((0, i18n_1.t)('delete.deleted', session.taskId));
 }
 // ── Sync ─────────────────────────────────────────────────────
@@ -244,5 +262,6 @@ async function handleSyncSession(item) {
         _treeProvider.refresh();
     if (_panelManager)
         _panelManager.disposeAll();
+    updateSessionContext(_storage);
 }
 //# sourceMappingURL=extension.js.map

@@ -1,5 +1,5 @@
 /**
- * Chinese (Simplified) translations — default language for CANNBot Insight.
+ * Chinese (Simplified) translations — default language for Context Insight.
  */
 declare const zhCN: Record<string, string>;
 export default zhCN;

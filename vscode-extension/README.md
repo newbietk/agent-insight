@@ -1,12 +1,12 @@
-# Context Insight - VSCode 插件
+# Context Insight
 
-LLM 编码 Agent 的 Session 级可观测工具。从 Claude Code、CodeAgent、OpenCode 导入对话记录，在编辑器内直接分析 Token 用量、上下文增长、费用、工具调用、Skill 事件和子代理。
+LLM 编码 Agent 的 Session 级可观测工具。从 Claude Code、CodeAgent、OpenCode 导入对话记录，直观分析 Token 用量、上下文增长、费用、工具调用、Skill 事件和子代理。
 
 **[English Documentation](README-en.md)**
 
 ## 总体介绍
 
-Context Insight 在 VSCode 活动栏添加一个专用面板，将 LLM Agent 的对话历史转化为结构化的可观测数据。导入 Session 后，点击即可打开多 Tab 分析视图，从宏观概览到微观轮次，全面了解 Agent 的行为模式。
+Context Insight 提供一个专用面板，将 LLM Agent 的对话历史转化为结构化的可观测数据。导入 Session 后，点击即可打开多 Tab 分析视图，从宏观概览到微观轮次，全面了解 Agent 的行为模式。
 
 **支持的数据源：**
 

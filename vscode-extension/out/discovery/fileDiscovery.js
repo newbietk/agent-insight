@@ -74,7 +74,7 @@ function findJsonlFiles(dirPath, visited) {
         }
     }
     catch (e) {
-        console.error(`[KirinAI] findJsonlFiles error in ${dirPath}: ${e.code || e.message}`);
+        console.error(`[Context] findJsonlFiles error in ${dirPath}: ${e.code || e.message}`);
     }
     return results;
 }

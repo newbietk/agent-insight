@@ -86,14 +86,14 @@ class SyncScheduler {
                 this.start(); // re-read config and restart
             }
         }));
-        console.log(`[KirinAI] Auto-sync started (interval: ${clamped}ms)`);
+        console.log(`[Context] Auto-sync started (interval: ${clamped}ms)`);
     }
     /** Stop polling. Safe to call multiple times. */
     stop() {
         if (this.timer) {
             clearInterval(this.timer);
             this.timer = null;
-            console.log('[KirinAI] Auto-sync stopped');
+            console.log('[Context] Auto-sync stopped');
         }
     }
     /** Release all listeners and stop the timer. */
@@ -127,11 +127,11 @@ class SyncScheduler {
                 const result = await syncSession(this.storage, s.id);
                 if (result.newTurnCount > 0) {
                     changed = true;
-                    console.log(`[KirinAI] Auto-synced "${s.taskId}": +${result.newTurnCount} turns (${result.totalTurnCount} total)`);
+                    console.log(`[Context] Auto-synced "${s.taskId}": +${result.newTurnCount} turns (${result.totalTurnCount} total)`);
                 }
             }
             catch (err) {
-                console.error(`[KirinAI] Auto-sync failed for "${s.taskId}":`, err instanceof Error ? err.message : err);
+                console.error(`[Context] Auto-sync failed for "${s.taskId}":`, err instanceof Error ? err.message : err);
             }
             finally {
                 this.running.delete(s.id);
