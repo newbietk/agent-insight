@@ -178,8 +178,6 @@ function pipelineImport(storage, rawInteractions, sourceType, framework, taskId,
 const SUBAGENT_DISPATCH_TOOLS = new Set(['Agent', 'Task', 'agent', 'task']);
 /** Build subagent_links bridges from raw interactions and insert them into storage. */
 function buildSubagentLinks(storage, rawInteractions, sourceType, sessionId, sourcePath, turns, toolCalls) {
-    if (sourceType !== 'claude-jsonl')
-        return; // OpenCode subagent handling TBD
     // Build a map: toolCallId → turnId
     const tcIdToTurnId = new Map();
     for (const tc of toolCalls) {
@@ -190,10 +188,38 @@ function buildSubagentLinks(storage, rawInteractions, sourceType, sessionId, sou
     for (const t of turns) {
         turnMap.set(t.id, t);
     }
-    // Get subagent mappings for this session (toolUseId → subagentSessionId)
-    const parentDir = path.dirname(sourcePath);
-    const taskId = path.basename(sourcePath, '.jsonl');
-    const subagentMappings = (0, claude_jsonl_1.collectSubagentToolUseMappings)(parentDir, taskId);
+    // Build subagent mappings: toolCallId → subagentSessionId
+    // For Claude Code JSONL: read from .meta.json files in the subagents directory
+    // For OpenCode DB: extract from raw interaction tool call args (metadata.sessionId)
+    const subagentMappings = new Map();
+    if (sourceType === 'claude-jsonl') {
+        const parentDir = path.dirname(sourcePath);
+        const taskId = path.basename(sourcePath, '.jsonl');
+        for (const [k, v] of (0, claude_jsonl_1.collectSubagentToolUseMappings)(parentDir, taskId)) {
+            subagentMappings.set(k, v);
+        }
+    }
+    else if (sourceType === 'opencode-db') {
+        // OpenCode stores subagent dispatch metadata in tool part state.
+        // _readSession extracts this as subagent_session_id in the merged args.
+        for (const interaction of rawInteractions) {
+            if (interaction.role !== 'assistant' || !interaction.tool_calls)
+                continue;
+            for (const tc of interaction.tool_calls) {
+                if (!SUBAGENT_DISPATCH_TOOLS.has(tc.toolName))
+                    continue;
+                try {
+                    if (tc.argsJson) {
+                        const args = JSON.parse(tc.argsJson);
+                        if (args.subagent_session_id) {
+                            subagentMappings.set(tc.toolCallId, args.subagent_session_id);
+                        }
+                    }
+                }
+                catch { /* ignore parse errors */ }
+            }
+        }
+    }
     if (subagentMappings.size === 0)
         return;
     // Iterate raw interactions to find Agent/Task dispatches
@@ -265,12 +291,27 @@ function importJsonlFile(storage, filePath) {
 /**
  * Import a single OpenCode session into storage.
  * Returns the import result or null if the session has no messages.
+ *
+ * Subagent sessions are NOT imported independently — they are discovered
+ * via parent_id and their interactions are merged into the parent session.
  */
 async function importOpenCodeSession(storage, dbPath, sessionId) {
     if (storage.sessionExists(sessionId, 'opencode')) {
         throw new Error((0, i18n_1.t)('import.error.alreadyImported', sessionId));
     }
     const rawInteractions = await (0, opencode_db_1.readSession)(dbPath, sessionId);
+    // Merge subagent interactions for OpenCode: find child sessions
+    // (WHERE parent_id = sessionId) and merge their interactions into the
+    // parent stream with subagent annotations already set by readSession.
+    const childIds = await (0, opencode_db_1.listChildSessionIds)(dbPath, sessionId);
+    if (childIds.length > 0) {
+        for (const childId of childIds) {
+            const childInteractions = await (0, opencode_db_1.readSession)(dbPath, childId);
+            // readSession already annotates child interactions with
+            // subagent_session_id / subagent_name / subagent_type
+            rawInteractions.push(...childInteractions);
+        }
+    }
     const title = await (0, opencode_db_1.getSessionTitle)(dbPath, sessionId);
     return pipelineImport(storage, rawInteractions, 'opencode-db', 'opencode', sessionId, dbPath, title);
 }
@@ -333,6 +374,14 @@ async function syncSession(storage, sessionId) {
     let rawInteractions;
     if (sourceType === 'opencode-db') {
         rawInteractions = await (0, opencode_db_1.readSession)(session.sourcePath, session.taskId);
+        // Merge subagent interactions for OpenCode sessions
+        const childIds = await (0, opencode_db_1.listChildSessionIds)(session.sourcePath, session.taskId);
+        if (childIds.length > 0) {
+            for (const childId of childIds) {
+                const childInteractions = await (0, opencode_db_1.readSession)(session.sourcePath, childId);
+                rawInteractions.push(...childInteractions);
+            }
+        }
     }
     else {
         rawInteractions = (0, claude_jsonl_1.readSession)(session.sourcePath, session.taskId);

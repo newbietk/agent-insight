@@ -26,6 +26,9 @@ export declare function importJsonlFile(storage: Storage, filePath: string): Imp
 /**
  * Import a single OpenCode session into storage.
  * Returns the import result or null if the session has no messages.
+ *
+ * Subagent sessions are NOT imported independently — they are discovered
+ * via parent_id and their interactions are merged into the parent session.
  */
 export declare function importOpenCodeSession(storage: Storage, dbPath: string, sessionId: string): Promise<ImportResult | null>;
 /**

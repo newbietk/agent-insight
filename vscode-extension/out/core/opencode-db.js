@@ -1,6 +1,7 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.listSessions = listSessions;
+exports.listChildSessionIds = listChildSessionIds;
 exports.getSessionTitle = getSessionTitle;
 exports.readSession = readSession;
 const compat_db_1 = require("../storage/compat-db");
@@ -37,7 +38,16 @@ async function listSessions(dbPath) {
         return [];
     }
     try {
-        const sessions = db.prepare('SELECT id, title, version, time_created FROM session WHERE parent_id IS NULL OR parent_id = \'\' ORDER BY time_created DESC').all();
+        const allSessions = db.prepare('SELECT id, title, version, time_created FROM session WHERE parent_id IS NULL OR parent_id = \'\' ORDER BY time_created DESC').all();
+        // Filter out subagent sessions whose titles match known OpenCode subagent patterns.
+        // In some OpenCode versions parent_id may not be reliably set, so we also filter
+        // by title as a safety net. Subagent titles typically look like "@(Explore) subagent",
+        // "@(Plan) subagent", etc. — they should never appear as standalone importable sessions.
+        const sessions = allSessions.filter(s => {
+            if (!s.title)
+                return true;
+            return !/\bsubagent\b/i.test(s.title);
+        });
         if (sessions.length === 0)
             return [];
         const sessionIds = sessions.map(s => s.id);
@@ -133,6 +143,24 @@ async function listSessions(dbPath) {
             });
         }
         return result;
+    }
+    finally {
+        db.close();
+    }
+}
+// ── Subagent child discovery ────────────────────────────────
+/** Return the session IDs of all direct child (subagent) sessions for a parent. */
+async function listChildSessionIds(dbPath, parentSessionId) {
+    let db;
+    try {
+        db = await compat_db_1.CompatDB.open(dbPath, { readOnly: true });
+    }
+    catch {
+        return [];
+    }
+    try {
+        const rows = db.prepare('SELECT id FROM session WHERE parent_id = ?').all(parentSessionId);
+        return rows.map(r => r.id);
     }
     finally {
         db.close();

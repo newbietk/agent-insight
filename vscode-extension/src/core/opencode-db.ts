@@ -43,9 +43,18 @@ export async function listSessions(dbPath: string): Promise<SessionListItem[]> {
   }
 
   try {
-    const sessions = db.prepare(
+    const allSessions = db.prepare(
       'SELECT id, title, version, time_created FROM session WHERE parent_id IS NULL OR parent_id = \'\' ORDER BY time_created DESC'
     ).all() as { id: string; title: string; version: string; time_created: number }[];
+
+    // Filter out subagent sessions whose titles match known OpenCode subagent patterns.
+    // In some OpenCode versions parent_id may not be reliably set, so we also filter
+    // by title as a safety net. Subagent titles typically look like "@(Explore) subagent",
+    // "@(Plan) subagent", etc. — they should never appear as standalone importable sessions.
+    const sessions = allSessions.filter(s => {
+      if (!s.title) return true;
+      return !/\bsubagent\b/i.test(s.title);
+    });
 
     if (sessions.length === 0) return [];
 
@@ -159,6 +168,26 @@ export async function listSessions(dbPath: string): Promise<SessionListItem[]> {
     }
 
     return result;
+  } finally {
+    db.close();
+  }
+}
+
+// ── Subagent child discovery ────────────────────────────────
+
+/** Return the session IDs of all direct child (subagent) sessions for a parent. */
+export async function listChildSessionIds(dbPath: string, parentSessionId: string): Promise<string[]> {
+  let db: CompatDB;
+  try {
+    db = await CompatDB.open(dbPath, { readOnly: true });
+  } catch {
+    return [];
+  }
+  try {
+    const rows = db.prepare(
+      'SELECT id FROM session WHERE parent_id = ?'
+    ).all(parentSessionId) as { id: string }[];
+    return rows.map(r => r.id);
   } finally {
     db.close();
   }
